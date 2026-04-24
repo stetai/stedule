@@ -1,82 +1,41 @@
 /**
  * storage.js — File I/O abstraction layer
- *
- * WHY THIS FILE EXISTS:
- * This is the ONLY file that will change when you migrate from browser
- * to Tauri. Every other file calls readFile() / writeFile() without
- * knowing or caring how those actually work under the hood.
- * This pattern is called "dependency inversion" and it's one of the
- * most important architectural habits you can build.
- *
+ * 
  * BROWSER IMPLEMENTATION:
  * Uses the File System Access API — a modern browser API that lets JS
  * request permission to read/write a specific local file the user picks.
  * The user explicitly grants access each session; no silent disk access.
+ * Chromium and Firefox-based browsers are handled differently based on
+ * their design philosophies.
  *
- * TAURI MIGRATION (future):
- * Replace the bodies of readFile() and writeFile() with:
+ * TAURI MIGRATION (todo):
+ * Replace the bodies of openFile() and writeFile() with:
  *   import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
  * The rest of the app stays identical.
  */
 
-// ============================================================
-// MODULE-LEVEL STATE
-// ============================================================
-//
-// JS QUIRK — Module scope:
-// Variables declared at the top level of an ES module are NOT global.
-// They exist only inside this file. Other files cannot access _fileHandle
-// directly — they must call the exported functions. This is good: it
-// enforces that file access always goes through this module's interface.
-//
-// The underscore prefix on _fileHandle is a convention (not enforced by
-// the language) meaning "this is private, don't use it from outside".
+// Detect capability (Distinguish between Chromium, Firefox)
+const hasFileSystemAccess = 'showOpenFilePicker' in window;
 
-let _fileHandle = null;
+let _fileHandle = null; // Chromium: FileSystemFileHandle
+let _fileName   = null; // Both: display name
 
-// ============================================================
-// EXPORTED FUNCTIONS
-// ============================================================
-//
-// JS QUIRK — async/await:
-// JavaScript is single-threaded. There is no Thread.sleep() or blocking
-// wait. Instead, operations that take time (disk, network) are async:
-// they return a Promise — an object representing a future value.
-//
-// async/await is syntax sugar for working with Promises:
-//   const data = await someAsyncFunction();
-// This pauses THIS function until the promise resolves, but the browser
-// remains responsive — other events (clicks, animations) still fire.
-//
-// A function marked async ALWAYS returns a Promise, even if you return
-// a plain value inside it. Callers must await it or .then() it.
+// -- Exported API -------------------------------------------------------
 
 /**
- * Prompts the user to pick a .ics file and reads its text content.
- * Stores the file handle so subsequent saves don't re-prompt.
+ * Opens a file picker and reads the selected .ics file.
+ * On Chromium: stores the file handle for in-place writes later.
+ * On Firefox:  reads the file once; writes will download a new file.
  *
- * @returns {Promise<string>} The raw text content of the file.
- * @throws {DOMException} with name 'AbortError' if the user cancels.
+ * @returns {Promise<string>} Raw text content of the file.
+ * @throws  {DOMException}   name === 'AbortError' if the user cancels.
  */
 export async function openFile() {
-  // showOpenFilePicker() is the browser dialog for picking a file.
-  // It returns an ARRAY of handles (even when multiple:false),
-  // so we destructure the first item with [_fileHandle].
-  //
-  // JS QUIRK — destructuring assignment:
-  // const [a, b] = [1, 2];  // a=1, b=2
-  // This is how we unpack arrays inline. We're also assigning directly
-  // to our module-level variable (not declaring a new one with let/const).
-  [_fileHandle] = await window.showOpenFilePicker({
-    types: [{
-      description: 'iCalendar file',
-      accept: { 'text/calendar': ['.ics'] },
-    }],
-    multiple: false,
-    excludeAcceptAllOption: false,
-  });
-
-  return _readFromHandle(_fileHandle);
+  if (hasFileSystemAccess) {
+    return _openChromium();
+  } else {
+    return _openFirefox();
+  }
 }
 
 /**
@@ -88,33 +47,32 @@ export async function openFile() {
  */
 export async function reloadFile() {
   if (!_fileHandle) throw new Error('No file is open. Call openFile() first.');
-  return _readFromHandle(_fileHandle);
+
+  if (hasFileSystemAccess && _fileHandle) {
+    return _readFromHandle(_fileHandle);
+  }
+
+  // Firefox: signal to the caller that a re-open is needed
+  return null;
 }
 
 /**
- * Writes content to the currently open file.
+ * Writes updated calendar content.
+ * On Chromium: overwrites the original file in-place.
+ * On Firefox:  downloads a new file. The user must replace the file in
+ *              their Syncthing folder manually.
  *
- * @param {string} content - The full text to write (replaces file contents).
+ * @param {string} content - Full .ics text to write.
  * @returns {Promise<void>}
  */
 export async function writeFile(content) {
-  if (!_fileHandle) throw new Error('No file is open. Call openFile() first.');
-
-  // Before writing, verify we still have permission.
-  // The user could have revoked it, or the browser may have cleared
-  // permissions between sessions.
-  const permission = await _fileHandle.requestPermission({ mode: 'readwrite' });
-  if (permission !== 'granted') {
-    throw new Error('Write permission was denied by the browser.');
+  if (!_fileName) throw new Error('No file is open. Call openFile() first.');
+ 
+  if (hasFileSystemAccess) {
+    return _writeChromium(content);
+  } else {
+    return _writeFirefox(content);
   }
-
-  // createWritable() opens a write stream.
-  // We MUST call close() — it's analogous to closing a file in Python.
-  // Until close() is called, the actual file on disk is NOT modified
-  // (the browser writes to a temp file first, then atomically swaps).
-  const writable = await _fileHandle.createWritable();
-  await writable.write(content);
-  await writable.close();
 }
 
 /**
@@ -124,7 +82,7 @@ export async function writeFile(content) {
  * @returns {string|null}
  */
 export function getFileName() {
-  return _fileHandle ? _fileHandle.name : null;
+  return _fileName ? _fileName : null;
 }
 
 /**
@@ -132,7 +90,117 @@ export function getFileName() {
  * @returns {boolean}
  */
 export function hasFileOpen() {
-  return _fileHandle !== null;
+  return _fileName !== null;
+}
+
+/**
+ * Returns true if the browser supports in-place file writing.
+ * app.js uses this to show a notice to Firefox users about download saves.
+ * @returns {boolean}
+ */
+export function canWriteInPlace() {
+  return hasFileSystemAccess;
+}
+
+// -- Chromium implementation --------------------------------------------
+
+/**
+ * Prompts the user to pick a .ics file and reads its text content.
+ * Stores the file handle so subsequent saves don't re-prompt.
+ *
+ * @returns {Promise<string>} The raw text content of the file.
+ * @throws {DOMException} with name 'AbortError' if the user cancels.
+ */
+export async function _openChromium() {
+  // showOpenFilePicker() is the browser dialog for picking a file.
+  [_fileHandle] = await window.showOpenFilePicker({
+    types: [{
+      description: '.ics file',
+      accept: { 'text/calendar': ['.ics'] },
+    }],
+    multiple: false,
+    excludeAcceptAllOption: false,
+  });
+  _fileName = _fileHandle.name;
+  return _readFromHandle(_fileHandle);
+}
+
+/**
+ * Writes content to the currently open file.
+ *
+ * @param {string} content - The full text to write (replaces file contents).
+ * @returns {Promise<void>}
+ */
+export async function _writeChromium(content) {
+  // Verify permission
+  const permission = await _fileHandle.requestPermission({ mode: 'readwrite' });
+  if (permission !== 'granted') {
+    throw new Error('Write permission was denied by the browser.');
+  }
+
+  // createWritable() opens a write stream.
+  const writable = await _fileHandle.createWritable();
+  await writable.write(content);
+  await writable.close(); // save write changes
+}
+
+// -- Firefox implementation ---------------------------------------------
+
+function _openFirefox() {
+  return new Promise((resolve, reject) => {
+    const input    = document.createElement('input');
+    input.type     = 'file';
+    input.accept   = '.ics,text/calendar';
+    input.style    = 'display:none';
+ 
+    input.onchange = () => {
+      // JS QUIRK — optional chaining (?.):
+      // input.files?.[] won't throw if input.files is null/undefined.
+      const file = input.files?.[0];
+ 
+      if (!file) {
+        reject(Object.assign(new DOMException('User cancelled'), { name: 'AbortError' }));
+        input.remove();
+        return;
+      }
+ 
+      _fileName = file.name;
+      file.text().then(resolve).catch(reject);
+      input.remove();
+    };
+ 
+    // 'cancel' fires when the user dismisses the picker without selecting.
+    // Supported Firefox 113+, Chrome 113+.
+    input.oncancel = () => {
+      reject(Object.assign(new DOMException('User cancelled'), { name: 'AbortError' }));
+      input.remove();
+    };
+ 
+    document.body.appendChild(input);
+    input.click();
+  });
+}
+
+function _writeFirefox(content) {
+  // Blob is an in-memory file. We create one from the text content,
+  // attach it to a temporary URL, then programmatically click a hidden
+  // <a download> link — the only way to trigger a download from JS.
+  const blob = new Blob([content], { type: 'text/calendar' });
+  const url  = URL.createObjectURL(blob);
+ 
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = _fileName;
+  a.style    = 'display:none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+ 
+  // createObjectURL creates a memory reference that must be manually freed.
+  // We delay slightly to ensure the download starts before we revoke.
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+ 
+  return Promise.resolve();
 }
 
 // ============================================================
