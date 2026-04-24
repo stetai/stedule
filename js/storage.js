@@ -14,32 +14,28 @@
  * The rest of the app stays identical.
  */
 
+// Detect capability (Distinguish between Chromium, Firefox)
 const hasFileSystemAccess = 'showOpenFilePicker' in window;
 
 let _fileHandle = null; // Chromium: FileSystemFileHandle
 let _fileName   = null; // Both: display name
 
-// -- Chromium implementation --------------------------------------------
+// -- Exported API -------------------------------------------------------
 
 /**
- * Prompts the user to pick a .ics file and reads its text content.
- * Stores the file handle so subsequent saves don't re-prompt.
+ * Opens a file picker and reads the selected .ics file.
+ * On Chromium: stores the file handle for in-place writes later.
+ * On Firefox:  reads the file once; writes will download a new file.
  *
- * @returns {Promise<string>} The raw text content of the file.
- * @throws {DOMException} with name 'AbortError' if the user cancels.
+ * @returns {Promise<string>} Raw text content of the file.
+ * @throws  {DOMException}   name === 'AbortError' if the user cancels.
  */
-export async function openChromium() {
-  // showOpenFilePicker() is the browser dialog for picking a file.
-  [_fileHandle] = await window.showOpenFilePicker({
-    types: [{
-      description: '.ics file',
-      accept: { 'text/calendar': ['.ics'] },
-    }],
-    multiple: false,
-    excludeAcceptAllOption: false,
-  });
-  _fileName = _fileHandle.name;
-  return _readFromHandle(_fileHandle);
+export async function openFile() {
+  if (hasFileSystemAccess) {
+    return _openChromium();
+  } else {
+    return _openFirefox();
+  }
 }
 
 /**
@@ -61,24 +57,22 @@ export async function reloadFile() {
 }
 
 /**
- * Writes content to the currently open file.
+ * Writes updated calendar content.
+ * On Chromium: overwrites the original file in-place.
+ * On Firefox:  downloads a new file. The user must replace the file in
+ *              their Syncthing folder manually.
  *
- * @param {string} content - The full text to write (replaces file contents).
+ * @param {string} content - Full .ics text to write.
  * @returns {Promise<void>}
  */
 export async function writeFile(content) {
-  if (!_fileHandle) throw new Error('No file is open. Call openFile() first.');
-
-  // Verify permission
-  const permission = await _fileHandle.requestPermission({ mode: 'readwrite' });
-  if (permission !== 'granted') {
-    throw new Error('Write permission was denied by the browser.');
+  if (!_fileName) throw new Error('No file is open. Call openFile() first.');
+ 
+  if (hasFileSystemAccess) {
+    return _writeChromium(content);
+  } else {
+    return _writeFirefox(content);
   }
-
-  // createWritable() opens a write stream.
-  const writable = await _fileHandle.createWritable();
-  await writable.write(content);
-  await writable.close(); // save write changes
 }
 
 /**
@@ -97,6 +91,116 @@ export function getFileName() {
  */
 export function hasFileOpen() {
   return _fileHandle !== null;
+}
+
+/**
+ * Returns true if the browser supports in-place file writing.
+ * app.js uses this to show a notice to Firefox users about download saves.
+ * @returns {boolean}
+ */
+export function canWriteInPlace() {
+  return hasFileSystemAccess;
+}
+
+// -- Chromium implementation --------------------------------------------
+
+/**
+ * Prompts the user to pick a .ics file and reads its text content.
+ * Stores the file handle so subsequent saves don't re-prompt.
+ *
+ * @returns {Promise<string>} The raw text content of the file.
+ * @throws {DOMException} with name 'AbortError' if the user cancels.
+ */
+export async function _openChromium() {
+  // showOpenFilePicker() is the browser dialog for picking a file.
+  [_fileHandle] = await window.showOpenFilePicker({
+    types: [{
+      description: '.ics file',
+      accept: { 'text/calendar': ['.ics'] },
+    }],
+    multiple: false,
+    excludeAcceptAllOption: false,
+  });
+  _fileName = _fileHandle.name;
+  return _readFromHandle(_fileHandle);
+}
+
+/**
+ * Writes content to the currently open file.
+ *
+ * @param {string} content - The full text to write (replaces file contents).
+ * @returns {Promise<void>}
+ */
+export async function _writeChromium(content) {
+  // Verify permission
+  const permission = await _fileHandle.requestPermission({ mode: 'readwrite' });
+  if (permission !== 'granted') {
+    throw new Error('Write permission was denied by the browser.');
+  }
+
+  // createWritable() opens a write stream.
+  const writable = await _fileHandle.createWritable();
+  await writable.write(content);
+  await writable.close(); // save write changes
+}
+
+// -- Firefox implementation ---------------------------------------------
+
+function _openFirefox() {
+  return new Promise((resolve, reject) => {
+    const input    = document.createElement('input');
+    input.type     = 'file';
+    input.accept   = '.ics,text/calendar';
+    input.style    = 'display:none';
+ 
+    input.onchange = () => {
+      // JS QUIRK — optional chaining (?.):
+      // input.files?.[] won't throw if input.files is null/undefined.
+      const file = input.files?.[0];
+ 
+      if (!file) {
+        reject(Object.assign(new DOMException('User cancelled'), { name: 'AbortError' }));
+        input.remove();
+        return;
+      }
+ 
+      _fileName = file.name;
+      file.text().then(resolve).catch(reject);
+      input.remove();
+    };
+ 
+    // 'cancel' fires when the user dismisses the picker without selecting.
+    // Supported Firefox 113+, Chrome 113+.
+    input.oncancel = () => {
+      reject(Object.assign(new DOMException('User cancelled'), { name: 'AbortError' }));
+      input.remove();
+    };
+ 
+    document.body.appendChild(input);
+    input.click();
+  });
+}
+
+function _writeFirefox(content) {
+  // Blob is an in-memory file. We create one from the text content,
+  // attach it to a temporary URL, then programmatically click a hidden
+  // <a download> link — the only way to trigger a download from JS.
+  const blob = new Blob([content], { type: 'text/calendar' });
+  const url  = URL.createObjectURL(blob);
+ 
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = _fileName;
+  a.style    = 'display:none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+ 
+  // createObjectURL creates a memory reference that must be manually freed.
+  // We delay slightly to ensure the download starts before we revoke.
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+ 
+  return Promise.resolve();
 }
 
 // ============================================================

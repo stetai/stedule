@@ -11,6 +11,10 @@ python -m http.server 8080
 
 And navigate to http://localhost:8080 on the browser of your choice.
 
+## Milestones
+
+- `260424` Import Claude-generated scaffolding for the project
+
 ## Future features
 - [ ] Week view
 - [ ] Dark mode

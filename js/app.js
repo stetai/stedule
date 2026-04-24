@@ -144,6 +144,7 @@ async function handleOpenFile() {
     const raw = await openFile();
     events = parseICS(raw);
     renderCalendar();
+    const saveNote = canWriteInPlace() ? '' : ' · Firefox: saves will download a new file';
     setStatus(`Loaded: ${getFileName()} — ${events.length} event(s)`, 'saved');
   } catch (err) {
     // The File System Access API throws an AbortError when the user
