@@ -6,10 +6,10 @@ A calendar application that saves its data in a local .ics file.
 
 Run the following line in a terminal from this folder (stedule/).
 ```
-python -m http.server 8080
+python -m http.server 352
 ```
 
-And navigate to http://localhost:8080 on the browser of your choice.
+And navigate to http://localhost:352 on the browser of your choice.
 
 ## Future features
 - [ ] Week view
