@@ -20,7 +20,7 @@
  */
 
 import {
-  openFile, writeFile, reloadFile, hasFileOpen, getFileName,
+  openFile, writeFile, reloadFile, hasFileOpen, getFileName, canWriteInPlace
 } from './storage.js';
 
 import {
@@ -145,7 +145,7 @@ async function handleOpenFile() {
     events = parseICS(raw);
     renderCalendar();
     const saveNote = canWriteInPlace() ? '' : ' · Firefox: saves will download a new file';
-    setStatus(`Loaded: ${getFileName()} — ${events.length} event(s)`, 'saved');
+    setStatus(`Loaded: ${getFileName()} — ${events.length} event(s)${saveNote}`, 'saved');
   } catch (err) {
     // The File System Access API throws an AbortError when the user
     // cancels the picker. This is not a real error — don't show an alert.
@@ -477,5 +477,5 @@ function weekRangeLabel(date) {
   sunday.setDate(sunday.getDate() + 6);
 
   const fmt = { month: 'short', day: 'numeric' };
-  return `${monday.toLocaleDateString('default', fmt)} – ${sunday.toLocaleDateString('default', fmt)}, ${sunday.getFullYear()}`;
+  return `${monday.toLocaleDateString('default', fmt)} - ${sunday.toLocaleDateString('default', fmt)}, ${sunday.getFullYear()}`;
 }

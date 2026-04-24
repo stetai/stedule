@@ -82,7 +82,7 @@ export async function writeFile(content) {
  * @returns {string|null}
  */
 export function getFileName() {
-  return _fileHandle ? _fileHandle.name : null;
+  return _fileName ? _fileName : null;
 }
 
 /**
@@ -90,7 +90,7 @@ export function getFileName() {
  * @returns {boolean}
  */
 export function hasFileOpen() {
-  return _fileHandle !== null;
+  return _fileName !== null;
 }
 
 /**
