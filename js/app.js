@@ -388,6 +388,68 @@ function renderWeekView() {
       row.appendChild(half);
       col.appendChild(row);
     }
+    
+    // ── Positioned events ────────────────────────────────────────
+    // For each event, calculate top and height in pixels from the
+    // fractional hour values of start/end time.
+    //
+    // Example: event from 09:30 to 10:45
+    //   startH  = 9 + 30/60  = 9.5
+    //   endH    = 10 + 45/60 = 10.75
+    //   top     = 9.5  * 64  = 608px
+    //   height  = 1.25 * 64  = 80px
+    for (const ev of dayEvents) {
+      if (ev.allDay) continue; // all-day events stay in month-chip style
+ 
+      const startH   = ev.start.getHours() + ev.start.getMinutes() / 60;
+      const endDate  = ev.end ?? new Date(ev.start.getTime() + 60 * 60 * 1000);
+      const endH     = endDate.getHours() + endDate.getMinutes() / 60;
+      // Clamp to a minimum visual height so short events are still clickable
+      const duration = Math.max(endH - startH, 0.25);
+ 
+      const chip = document.createElement('div');
+      chip.className = 'week-event';
+      chip.style.top        = `${startH * HOUR_H}px`;
+      chip.style.height     = `${duration * HOUR_H}px`;
+      chip.style.background = ev.color;
+ 
+      // Show title + time if there is enough vertical space
+      const titleEl = document.createElement('span');
+      titleEl.className = 'week-event-title';
+      titleEl.textContent = ev.title;
+ 
+      const timeEl = document.createElement('span');
+      timeEl.className = 'week-event-time';
+      timeEl.textContent = `${formatTime(ev.start)} - ${formatTime(endDate)}`;
+ 
+      chip.appendChild(titleEl);
+      chip.appendChild(timeEl);
+ 
+      chip.addEventListener('click', (e) => {
+        e.stopPropagation(); // prevent bubbling to the column click handler
+        openEditEventModal(ev);
+      });
+ 
+      col.appendChild(chip);
+    }
+ 
+    // ── Click-to-add ─────────────────────────────────────────────
+    // When the user clicks an empty area, compute which hour/minute
+    // was clicked using the scroll container's scrollTop.
+    col.addEventListener('click', (e) => {
+      // Ignore clicks that landed on an event chip
+      if (e.target.closest('.week-event')) return;
+ 
+      const scrollRect = scroll.getBoundingClientRect();
+      const yInContent = (e.clientY - scrollRect.top) + scroll.scrollTop;
+ 
+      // Snap to the nearest 15 minutes
+      const totalMins   = Math.round((yInContent / HOUR_H) * 60 / 15) * 15;
+      const clickedDate = new Date(day);
+      clickedDate.setHours(Math.floor(totalMins / 60), totalMins % 60, 0, 0);
+      openNewEventModal(clickedDate);
+    });
+
     daysWrap.appendChild(col)
   }
 
@@ -594,4 +656,16 @@ function weekRangeLabel(date) {
 
   const fmt = { month: 'short', day: 'numeric' };
   return `${monday.toLocaleDateString('default', fmt)} - ${sunday.toLocaleDateString('default', fmt)}, ${sunday.getFullYear()}`;
+}
+
+/**
+ * Formats a Date as a short time string, e.g. "9:30 AM".
+ * Used inside week-view event chips.
+ */
+function formatTime(date) {
+  if (!date) return '';
+  // toLocaleTimeString with these options gives "9:30 AM" in en-US.
+  // 'default' respects the user's locale, so it will use 24h format
+  // for users whose OS is set to a 24h locale.
+  return date.toLocaleTimeString('default', { hour: 'numeric', minute: '2-digit' });
 }

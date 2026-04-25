@@ -677,3 +677,48 @@ input[type="color"] {
   opacity: 0.6;
   pointer-events: none; /* clicks pass through to the column */
 }
+
+/* -- Week event chips ------------------------------------------------ */
+
+.week-event {
+  position: absolute;
+  /* left/right leave a 2px gap from the column edges */
+  left: 2px;
+  right: 2px;
+  border-radius: var(--radius-sm);
+  padding: 3px 5px;
+  color: white;
+  cursor: pointer;
+  overflow: hidden;
+  min-height: 18px;
+  z-index: 1;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  transition: opacity 0.1s, filter 0.1s;
+  /* Subtle left border makes thin events identifiable */
+  border-left: 3px solid rgba(0,0,0,0.15);
+}
+ 
+.week-event:hover {
+  opacity: 0.88;
+  filter: brightness(1.08);
+}
+ 
+.week-event-title {
+  font-size: 0.73rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+ 
+.week-event-time {
+  font-size: 0.65rem;
+  opacity: 0.85;
+  white-space: nowrap;
+  /* Hide the time label when the event chip is too short to fit it */
+  overflow: hidden;
+}
