@@ -292,14 +292,34 @@ function renderMonthView() {
 
 // --- Week view (scaffold — expand for full implementation) ---
 
+// The HOUR_H constant (px per hour) is the single source of truth
+// that connects the CSS layout to the JS positioning math.
+// If you change it, update BOTH the constant here AND --hour-h in CSS.
+
+const HOUR_H = 64; // pixels per hour. Must match --hour-h in style.css
+
 function renderWeekView() {
   const monday = startOfWeek(currentDate);
 
-  // Change weekday-headers to show actual dates
-  // TODO: implement full time-grid layout
+  // -- Outer wrapper ---
+  // .week-view is a flex colum that fills the grid container
+  const view = document.createElement('div');
+  view.className = 'week-view';
+
+  // -- Date header row ---
+  const headerRow = document.createElement('div');
+  headerRow.className = 'week-header-row';
+
+  const gutterSpacer = document.createElement('div');
+  gutterSpacer.className = 'week-gutter-spacer';
+  headerRow.appendChild(gutterSpacer);
+
   for (let i = 0; i < 7; i++) {
     const day = new Date(monday);
     day.setDate(day.getDate() + i);
+
+    //todo
+
     const dayEvents = eventsOnDay(events, day);
     elGrid.appendChild(createDayCell(day, dayEvents));
   }
