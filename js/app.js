@@ -302,7 +302,7 @@ function renderMonthView() {
 // that connects the CSS layout to the JS positioning math.
 // If you change it, update BOTH the constant here AND --hour-h in CSS.
 
-const HOUR_H = 64; // pixels per hour. Must match --hour-h in style.css
+const HOUR_H = 32; // pixels per hour. Must match --hour-h in style.css
 
 function renderWeekView() {
   const monday = startOfWeek(currentDate);
@@ -342,6 +342,9 @@ function renderWeekView() {
   view.appendChild(headerRow);
 
   // -- body ---
+
+  const scroll = document.createElement('div');
+  scroll.className = 'week-scroll';
 
   const body = document.createElement('div');
   body.className = 'week-body';
@@ -385,7 +388,8 @@ function renderWeekView() {
   }
 
   body.appendChild(daysWrap);
-  view.appendChild(body);
+  scroll.appendChild(body);
+  view.appendChild(scroll);
   elGrid.appendChild(view);
 }
 

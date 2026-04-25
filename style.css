@@ -587,13 +587,22 @@ input[type="color"] {
   line-height: 1;
 }
 
+.week-scroll {
+  flex: 1;          /* grows to fill remaining height below the header */
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Custom scrollbar styling (Chromium only — Firefox ignores these) */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
 /* The actual content row: gutter + 7 columns side by side */
 .week-body {
   display: flex;
   /* Height = 24 hours × HOUR_H. Defined in CSS so the browser knows
      the scroll container's total scrollable height.
      --hour-h MUST match the HOUR_H constant in app.js. */
-  --hour-h: 64px;
+  --hour-h: 32px;
   height: calc(24 * var(--hour-h));
   min-height: calc(24 * var(--hour-h));
 }
