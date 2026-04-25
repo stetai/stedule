@@ -30,6 +30,8 @@ import {
   toDateInputValue, toTimeInputValue, combineDateAndTime,
 } from './calendar.js';
 
+import { getFirstWeekday } from './calendar.js';
+
 // ============================================================
 // APPLICATION STATE
 // ============================================================
@@ -70,6 +72,7 @@ const elOverlay    = $('modal-overlay');
 const elModalTitle = $('modal-title');
 const elTitle      = $('event-title');
 const elDate       = $('event-date');
+const elWeekdays   = $('weekday-headers');
 const elStartTime  = $('event-start-time');
 const elEndTime    = $('event-end-time');
 const elDesc       = $('event-description');
@@ -132,6 +135,7 @@ function init() {
   });
 
   renderCalendar();
+  renderWeekdayHeader("Mon");
   setStatus('No file open. Click "Open .ics file" to begin.');
 }
 
@@ -240,6 +244,24 @@ function renderCalendar() {
   }
 }
 
+function  renderWeekdayHeader(startDay = "Mon") {
+  let days;
+  if (startDay === "Mon") {
+    days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  } else {
+    days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  }
+
+  elWeekdays.innerHTML = '';
+
+  for (const d of days) {
+    const el = document.createElement('div');
+    el.className = 'weekday-label';
+    el.textContent = d;
+    elWeekdays.appendChild(el);
+  }
+}
+
 // --- Month view ---
 
 function renderMonthView() {
@@ -253,7 +275,9 @@ function renderMonthView() {
   // This is a common JS idiom.
 
   // Fill leading empty cells so day 1 falls on the correct column
-  for (let i = 0; i < firstDay.getDay(); i++) {
+  const weekday = getFirstWeekday(firstDay);
+
+  for (let i = 0; i < weekday; i++) {
     const empty = document.createElement('div');
     empty.className = 'day-cell empty';
     elGrid.appendChild(empty);

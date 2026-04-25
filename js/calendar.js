@@ -71,8 +71,6 @@
  */
 export function createEvent({ title, start, end, description = '', color = '#4f72ff', allDay = false }) {
   return {
-    // crypto.randomUUID() is built into modern browsers and Node.
-    // It generates a unique ID like "110e8400-e29b-41d4-a716-446655440000".
     id: crypto.randomUUID(),
     title,
     start,
@@ -100,10 +98,6 @@ export function parseICS(rawText) {
   // Without 'g', .match() returns only the first VEVENT block.
   const eventBlocks = rawText.match(/BEGIN:VEVENT[\s\S]*?END:VEVENT/g);
 
-  // JS QUIRK — nullish coalescing (??):
-  // If .match() finds no events it returns null, not an empty array.
-  // The ?? operator returns the right side when the left is null or undefined.
-  // It's different from || which also triggers on 0, '', false.
   const blocks = eventBlocks ?? [];
 
   return blocks.map(parseVEVENT).filter(ev => ev !== null);
@@ -197,11 +191,21 @@ export function endOfDay(date) {
 }
 
 export function startOfWeek(date) {
-  // Returns the Sunday of the week containing `date`.
+  // first week day (monday)
   const d = new Date(date);
-  d.setDate(d.getDate() - d.getDay()); // .getDay() returns 0=Sun..6=Sat
+  const weekday = getFirstWeekday(d)
+  d.setDate(d.getDate() - weekday);
   d.setHours(0, 0, 0, 0);
   return d;
+}
+
+/**
+ * Returns weekday index with Monday = 0 ... Sunday = 6
+ * JS default is Sunday = 0 ... Saturday = 6.
+ */
+export function getFirstWeekday(date) {
+  // first week day (monday)
+  return (date.getDay() + 6) % 7;
 }
 
 export function isSameDay(a, b) {
