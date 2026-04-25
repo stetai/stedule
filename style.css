@@ -523,7 +523,14 @@ input[type="color"] {
 /* -- Week view ------------------------------------------------------- */
 /* #################################################################### */
 
-.calendar-grid.view-week,
+.calendar-grid.view-week{
+  /* Override the grid layout declared on .calendar-grid */
+  display: flex;
+  flex-direction: column;
+  grid-template-columns: unset;
+  grid-auto-rows: unset;
+}
+
 .calendar-grid.view-day {
   /* Override the grid layout declared on .calendar-grid */
   display: flex;

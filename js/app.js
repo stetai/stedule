@@ -305,6 +305,9 @@ function renderMonthView() {
 const HOUR_H = 32; // pixels per hour. Must match --hour-h in style.css
 
 function renderWeekView() {
+  elGrid.classList.remove('view-day');
+  elGrid.classList.add('view-week');
+
   const monday = startOfWeek(currentDate);
 
   // -- Outer wrapper ---
@@ -341,7 +344,7 @@ function renderWeekView() {
   }
   view.appendChild(headerRow);
 
-  // -- body ---
+  // -- scrollable body ---
 
   const scroll = document.createElement('div');
   scroll.className = 'week-scroll';
@@ -385,6 +388,7 @@ function renderWeekView() {
       row.appendChild(half);
       col.appendChild(row);
     }
+    daysWrap.appendChild(col)
   }
 
   body.appendChild(daysWrap);
