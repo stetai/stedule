@@ -227,6 +227,12 @@ function renderCalendar() {
   // Clear previous render
   elGrid.innerHTML = '';
 
+  // headers for week/days
+  const weekdayHeaders = document.getElementById('weekday-headers');
+  weekdayHeaders.style.display = currentView === 'month' ? '' : 'none';
+
+  elGrid.className = 'calendar-grid view-${currentView}';
+
   // Update the period label in the header
   if (currentView === 'month') {
     elPeriod.textContent = currentDate.toLocaleString('default', {
