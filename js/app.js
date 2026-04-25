@@ -324,11 +324,69 @@ function renderWeekView() {
     const day = new Date(monday);
     day.setDate(day.getDate() + i);
 
-    //todo
+    const hdr = document.createElement('div');
+    hdr.className = 'week-day-header' + (isToday(day) ? ' today' : '');
+    
+    const name = document.createElement('span');
+    name.className = 'wdh-name';
+    name.textContent = day.toLocaleDateString('default', { weekday: 'short'});
 
-    const dayEvents = eventsOnDay(events, day);
-    elGrid.appendChild(createDayCell(day, dayEvents));
+    const num = document.createElement('span');
+    num.className = 'wdh-num';
+    num.textContent = day.getDate();
+ 
+    hdr.appendChild(name);
+    hdr.appendChild(num);
+    headerRow.appendChild(hdr);
   }
+  view.appendChild(headerRow);
+
+  // -- body ---
+
+  const body = document.createElement('div');
+  body.className = 'week-body';
+
+  // -- Time gutter ---
+
+  const gutter = document.createElement('div');
+  gutter.className = 'week-time-gutter';
+  for (let h = 0; h < 24; h++) {
+    const label = document.createElement('div');
+    label.className = 'week-hour-label';
+    label.textContent = h === 0 ? '' : h;
+    gutter.appendChild(label);
+  }
+  body.appendChild(gutter);
+
+  // -- Day columns ---
+
+  const daysWrap = document.createElement('div');
+  daysWrap.className = 'week-days';
+ 
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(monday);
+    day.setDate(day.getDate() + i);
+    const dayEvents = eventsOnDay(events, day);
+ 
+    const col = document.createElement('div');
+    col.className = 'week-day-col' + (isToday(day) ? ' today' : '');
+ 
+    // ── Hour grid lines ──────────────────────────────────────────
+    // 24 divs, each HOUR_H tall. Purely visual.
+    for (let h = 0; h < 24; h++) {
+      const row = document.createElement('div');
+      row.className = 'week-hour-row';
+      // Half-hour tick: a lighter line at the midpoint of each hour cell
+      const half = document.createElement('div');
+      half.className = 'week-half-tick';
+      row.appendChild(half);
+      col.appendChild(row);
+    }
+  }
+
+  body.appendChild(daysWrap);
+  view.appendChild(body);
+  elGrid.appendChild(view);
 }
 
 // --- Day view (scaffold) ---

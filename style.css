@@ -532,6 +532,15 @@ input[type="color"] {
   grid-auto-rows: unset;
 }
 
+/* Outer shell — fills the flex column */
+.week-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0; /* required: without this, flex children ignore overflow */
+}
+
+
 /* -- Date header row ------------------------------------------------- */
 
 .week-header-row {
@@ -548,6 +557,35 @@ input[type="color"] {
   border-right: 1px solid var(--color-border);
 }
 
+.week-day-header {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xs) 0;
+  gap: 1px;
+  border-left: 1px solid var(--color-border);
+  cursor: default;
+}
+
+/* Abbreviated weekday name: "Mon" */
+.wdh-name {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+}
+ 
+/* Date number: "15" */
+.wdh-num {
+  font-family: var(--font-numeric);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  line-height: 1;
+}
 
 /* The actual content row: gutter + 7 columns side by side */
 .week-body {
@@ -567,4 +605,59 @@ input[type="color"] {
   flex-shrink: 0;
   border-right: 1px solid var(--color-border);
   position: relative;
+}
+
+.week-hour-label {
+  height: var(--hour-h);
+  display: flex;
+  align-items: flex-start;     /* label sits at the TOP of its hour slot */
+  justify-content: flex-end;
+  padding-right: var(--space-sm);
+  padding-top: 3px;
+  font-family: var(--font-numeric);
+  font-size: 0.66rem;
+  color: var(--color-text-muted);
+  box-sizing: border-box;
+}
+
+/* -- day columns -- */
+.week-days {
+  flex: 1;
+  display: flex;
+}
+
+.week-day-col {
+  flex: 1;
+  position: relative; /* establishes the positioning context for events */
+  border-right: 1px solid var(--color-border);
+}
+ 
+.week-day-col.today {
+  background: var(--color-today-bg);
+}
+
+.week-hour-row {
+  height: var(--hour-h);
+  border-bottom: 1px solid var(--color-border);
+  position: relative; /* for the half-hour tick pseudo-child */
+  box-sizing: border-box;
+}
+ 
+/* Half-hour tick: a lighter line at the 50% mark of each hour row */
+.week-half-tick {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  /* Use a dashed/lighter border to visually distinguish from the full-hour line */
+  background: repeating-linear-gradient(
+    to right,
+    var(--color-border) 0,
+    var(--color-border) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+  opacity: 0.6;
+  pointer-events: none; /* clicks pass through to the column */
 }
