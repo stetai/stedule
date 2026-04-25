@@ -11,7 +11,7 @@ python -m http.server 8080
 
 And navigate to http://localhost:8080 on the browser of your choice.
 
-## Milestones
+## Changelog
 
 - `260424` Import Claude-generated scaffolding for the project
 

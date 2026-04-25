@@ -46,7 +46,7 @@ import {
 
 let events      = [];           // All parsed event objects
 let currentDate = new Date();   // The date the calendar is currently showing
-let currentView = 'month';      // 'month' | 'week' | 'day' (week/day = future work)
+let currentView = 'week';      // 'month' | 'week' | 'day' (week/day = future work)
 let editingId   = null;         // ID of the event currently in the modal, or null
 
 // ============================================================
