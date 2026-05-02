@@ -327,7 +327,11 @@ function renderWeekView() {
     // ── Positioned events ────────────────────────────────────────
     // For each event, calculate top and height in pixels from the
     // fractional hour values of start/end time.
-    for (const ev of dayEvents) {
+    const laidOut = layoutDayEvents(dayEvents);
+
+    for (const item of laidOut) {
+      const ev = item.event;
+      
       if (ev.allDay) continue; // all-day events stay in month-chip style
  
       const startH   = ev.start.getHours() + ev.start.getMinutes() / 60;
@@ -335,11 +339,16 @@ function renderWeekView() {
       const endH     = endDate.getHours() + endDate.getMinutes() / 60;
       // Clamp to a minimum visual height so short events are still clickable
       const duration = Math.max(endH - startH, 0.25);
+
+      const width = 100 / item.cols;
+      const left  = width * item.col;
  
       const chip = document.createElement('div');
       chip.className = 'week-event';
       chip.style.top        = `${startH * HOUR_H}px`;
       chip.style.height     = `${duration * HOUR_H}px`;
+      chip.style.left       = `calc(${left}% + 2px)`;
+      chip.style.width      = `calc(${width}% - 4px)`;
       chip.style.background = ev.color;
  
       // Show title + time if there is enough vertical space
@@ -695,4 +704,45 @@ function weekRangeLabel(date) {
 function formatTime(date) {
   if (!date) return '';
   return date.toLocaleTimeString('default', { hour: 'numeric', minute: '2-digit' });
+}
+
+function layoutDayEvents(events) {
+
+  const sorted = [...events]
+    .filter(ev => !ev.allDay)
+    .sort((a,b) => a.start - b.start);
+
+  const columns = [];
+  const result = [];
+
+  for (const ev of sorted) {
+
+    let placed = false;
+
+    for (let i=0;i<columns.length;i++) {
+
+      const col = columns[i];
+      const last = col[col.length-1];
+
+      if (last.end <= ev.start) {
+        col.push(ev);
+        result.push({event: ev, col: i});
+        placed = true;
+        break;
+      }
+    }
+
+    if (!placed) {
+      columns.push([ev]);
+      result.push({event: ev, col: columns.length-1});
+    }
+  }
+
+  const colCount = columns.length;
+
+  return result.map(r => ({
+    event: r.event,
+    col: r.col,
+    cols: colCount
+  }));
 }

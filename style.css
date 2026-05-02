@@ -744,7 +744,6 @@ select:focus {
   position: absolute;
   /* left/right leave a 2px gap from the column edges */
   left: 2px;
-  right: 2px;
   border-radius: var(--radius-sm);
   padding: 3px 5px;
   color: white;
