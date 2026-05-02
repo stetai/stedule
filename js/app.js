@@ -8,7 +8,7 @@ import {
 
 import {
   parseICS, serializeICS, createEvent,
-  eventsOnDay, /*eventsInWeek,*/
+  eventsOnDay,
   isSameDay, isToday, startOfWeek,
   toDateInputValue, toTimeInputValue, combineDateAndTime,
 } from './calendar.js';
@@ -45,6 +45,12 @@ const elDesc       = $('event-description');
 const elColor      = $('event-color');
 const elDeleteBtn  = $('modal-delete');
 
+const elRepeatInterval = $('repeat-interval');
+const elRepeatEndType  = $('repeat-end-type');
+const elRepeatCount    = $('repeat-count');
+const elRepeatUntil    = $('repeat-until');
+const elRepeatWeekdays = document.getElementById('repeat-weekdays');
+
 // ============================================================
 // INITIALIZATION
 // ============================================================
@@ -80,6 +86,9 @@ function init() {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeModal();
   });
+
+  elRepeat.addEventListener('change', updateRepeatUI);
+  elRepeatEndType.addEventListener('change', updateRepeatUI);
 
   renderCalendar();
   renderWeekdayHeader("Mon");
@@ -449,11 +458,48 @@ function openNewEventModal(date) {
   elDesc.value       = '';
   elColor.value      = '#Bf8888';
   elRepeat.value     = '';
+  elRepeatInterval.value = 1;
+  elRepeatEndType.value = '';
+  elRepeatCount.value = '';
+  elRepeatUntil.value = '';
+
+  document
+    .querySelectorAll("#repeat-weekdays input")
+    .forEach(cb => cb.checked = false);
+
+  updateRepeatUI();
+
+  elRepeat.addEventListener("change", updateRepeatUI);
 
   openModal();
 
   // Focus the title field so the user can start typing immediately.
   elTitle.focus();
+}
+
+function updateRepeatUI() {
+  const freq = elRepeat.value;
+
+  // hide everything by default
+  elRepeatWeekdays.style.display = 'none';
+  elRepeatCount.style.display = 'none';
+  elRepeatUntil.style.display = 'none';
+
+  if (!freq) return;
+
+  if (freq === "WEEKLY") {
+    elRepeatWeekdays.style.display = '';
+  }
+
+  const endType = elRepeatEndType.value;
+
+  if (endType === "COUNT") {
+    elRepeatCount.style.display = '';
+  }
+
+  if (endType === "UNTIL") {
+    elRepeatUntil.style.display = '';
+  }
 }
 
 function openEditEventModal(ev) {
@@ -468,9 +514,37 @@ function openEditEventModal(ev) {
   elDesc.value      = ev.description ?? '';
   elColor.value     = ev.color ?? '#bf8888';
 
-  const freq = ev.rrule?.match(/FREQ=([^;]+)/)?.[1] ?? '';
-  elRepeat.value = freq;
+  if (ev.rrule) {
+    const recur = ICAL.Recur.fromString(ev.rrule);
 
+    elRepeat.value = recur.freq ?? '';
+    elRepeatInterval.value = recur.interval ?? 1;
+
+    if (recur.count) {
+      elRepeatEndType.value = "COUNT";
+      elRepeatCount.value = recur.count;
+    } else if (recur.until) {
+      elRepeatEndType.value = "UNTIL";
+      elRepeatUntil.value = recur.until.toJSDate().toISOString().slice(0,10);
+    } else {
+      elRepeatEndType.value = "";
+    }
+
+    if (recur.parts.BYDAY) {
+      const days = recur.parts.BYDAY;
+
+      document
+        .querySelectorAll("#repeat-weekdays input")
+        .forEach(cb => {
+          cb.checked = days.includes(cb.value);
+        });
+    }
+
+  } else {
+    elRepeat.value = '';
+  }
+
+  updateRepeatUI();
   openModal();
 }
 
@@ -497,8 +571,43 @@ function handleModalSave() {
 
   const start = combineDateAndTime(elDate.value, elStartTime.value);
   const end   = combineDateAndTime(elDate.value, elEndTime.value);
+
   const repeat = elRepeat.value || null;
-  const rrule = repeat ? `FREQ=${repeat};INTERVAL=1` : null;
+  let rrule = null;
+
+  if (repeat) {
+    const parts = [];
+    parts.push(`FREQ=${repeat}`);
+
+    const interval = document.getElementById("repeat-interval").value;
+    if (interval && interval > 1) {
+      parts.push(`INTERVAL=${interval}`);
+    }
+
+    if (repeat === "WEEKLY") {
+      const days = [...document.querySelectorAll("#repeat-weekdays input:checked")]
+        .map(el => el.value);
+      if (days.length) {
+        parts.push(`BYDAY=${days.join(",")}`);
+      }
+    }
+
+    const endType = document.getElementById("repeat-end-type").value;
+
+    if (endType === "COUNT") {
+      const count = document.getElementById("repeat-count").value;
+      parts.push(`COUNT=${count}`);
+    }
+
+    if (endType === "UNTIL") {
+      const until = document.getElementById("repeat-until").value;
+      if (until) {
+        parts.push(`UNTIL=${until.replace(/-/g,'')}T235959`);
+      }
+    }
+
+    rrule = parts.join(";");
+  }
 
   if (editingId) {
     // Update existing event: find it and replace its fields.
@@ -522,7 +631,7 @@ function handleModalSave() {
       end,
       description: elDesc.value,
       color: elColor.value,
-      rrule: repeat  ? `FREQ=${repeat};INTERVAL=1` : null,
+      rrule,
     }));
   }
 

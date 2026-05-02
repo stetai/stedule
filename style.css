@@ -478,6 +478,13 @@ input[type="color"] {
   background: var(--color-bg);
 }
 
+/* Recurrence UI elements hidden by default 
+#repeat-weekdays,
+#repeat-count,
+#repeat-until {
+  display: none;
+}*/
+
 /* ============================================================
    STATUS BAR
 ============================================================ */
