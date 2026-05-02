@@ -1,22 +1,5 @@
 /**
  * app.js — UI Controller
- *
- * This file is the "orchestrator". It:
- *   1. Holds application state (events, current date, current view)
- *   2. Listens for user interactions (clicks, modal submissions)
- *   3. Calls calendar.js to query/transform data
- *   4. Calls storage.js to read/write the file
- *   5. Updates the DOM to reflect the new state
- *
- * The pattern used here is intentionally simple and explicit — no
- * framework (React, Vue, etc.). You will see exactly how the DOM
- * works before any abstractions hide it from you.
- *
- * JS QUIRK — import paths:
- * Imports in ES modules require the FULL filename including extension.
- * Python: `from calendar import parseICS`
- * JS:     `import { parseICS } from './calendar.js'`  ← .js is required
- * Without .js, the browser cannot find the file.
  */
 
 import {
@@ -35,16 +18,6 @@ import { getAdjWeekday } from './calendar.js';
 // ============================================================
 // APPLICATION STATE
 // ============================================================
-//
-// JS QUIRK — there is no "private":
-// These are module-scoped (not accessible from outside this file),
-// but there is no access modifier keyword. The convention of using
-// plain `let` at the top level of a module IS the signal that
-// these are private to this module.
-//
-// All state lives here. The rule: if the UI looks wrong, it's because
-// one of these variables has a wrong value. That single source of truth
-// makes debugging much easier.
 
 let events      = [];           // All parsed event objects
 let currentDate = new Date();   // The date the calendar is currently showing
@@ -54,14 +27,6 @@ let editingId   = null;         // ID of the event currently in the modal, or nu
 // ============================================================
 // DOM REFERENCES
 // ============================================================
-//
-// querySelector returns the first element matching a CSS selector.
-// We cache these at startup rather than calling querySelector on
-// every render. DOM lookups are not expensive, but caching them
-// is a good habit and makes the code easier to read.
-//
-// getElementById is slightly faster than querySelector('#id')
-// for IDs, but both work fine.
 
 const $ = id => document.getElementById(id); // tiny shorthand
 
@@ -83,36 +48,17 @@ const elDeleteBtn  = $('modal-delete');
 // ============================================================
 // INITIALIZATION
 // ============================================================
-//
-// JS QUIRK — DOMContentLoaded vs load:
-// 'DOMContentLoaded' fires when HTML is parsed and the DOM tree is
-// ready. 'load' fires later, after all images and stylesheets have
-// downloaded. For JS that manipulates the DOM, DOMContentLoaded is
-// almost always the right choice.
-//
-// Since this script has type="module" in index.html, it's already
-// deferred (guaranteed to run after DOM is ready). The listener
-// is included anyway to make the dependency explicit.
+
 
 document.addEventListener('DOMContentLoaded', init);
 
 function init() {
-  // Wire up all buttons. 'click' is the most common event type.
-  // addEventListener(event, handler) is the modern way — it's safer
-  // than the old onclick="..." HTML attribute approach.
-
   $('btn-open').addEventListener('click', handleOpenFile);
   $('btn-prev').addEventListener('click', () => navigate(-1));
   $('btn-next').addEventListener('click', () => navigate(+1));
   $('btn-today').addEventListener('click', goToToday);
 
-  // View switcher: all three buttons share one handler.
-  // We read the clicked button's data-view attribute to know which view.
   $('view-switcher').addEventListener('click', (e) => {
-    // e.target is the element that was actually clicked.
-    // .closest() walks up the DOM tree to find the nearest matching
-    // ancestor — useful when clicks might land on child elements
-    // (like an icon inside a button).
     const btn = e.target.closest('.btn-view');
     if (!btn) return; // clicked the container, not a button
     switchView(btn.dataset.view);
@@ -126,11 +72,11 @@ function init() {
 
   // Close modal when clicking the dark overlay (outside the modal box)
   elOverlay.addEventListener('click', (e) => {
-    if (e.target === elOverlay) closeModal(); // only if the overlay itself was clicked
+    if (e.target === elOverlay) closeModal(); 
+    // only if the overlay itself was clicked
   });
 
   // Keyboard: Escape closes the modal.
-  // 'keydown' fires on the document, not just focused elements.
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeModal();
   });
@@ -178,13 +124,6 @@ async function save() {
 // ============================================================
 
 function navigate(direction) {
-  // JS QUIRK — Date mutation:
-  // setMonth/setDate mutate the Date IN PLACE.
-  // We are mutating currentDate here intentionally because we want
-  // to update the shared state. But be careful: if you ever pass
-  // currentDate to a function and that function mutates it, you'll
-  // get surprising bugs. The pattern to avoid this is:
-  //   const clone = new Date(currentDate);
   if (currentView === 'month') {
     currentDate.setMonth(currentDate.getMonth() + direction);
   } else if (currentView === 'week') {
@@ -205,7 +144,6 @@ function switchView(view) {
 
   // Update the active button styles
   document.querySelectorAll('.btn-view').forEach(btn => {
-    // classList.toggle(class, condition): adds class if true, removes if false
     btn.classList.toggle('active', btn.dataset.view === view);
   });
 
@@ -215,14 +153,6 @@ function switchView(view) {
 // ============================================================
 // RENDERING
 // ============================================================
-//
-// The core loop of any web app:
-//   State changes → renderCalendar() → DOM updates → user sees change
-//
-// We clear and rebuild the grid on every render.
-// This is simple and correct. At scale you'd use a virtual DOM
-// (what React does) to avoid unnecessary DOM operations, but
-// for a personal calendar it is completely fine.
 
 function renderCalendar() {
   // Clear previous render
@@ -277,9 +207,6 @@ function renderMonthView() {
 
   const firstDay = new Date(year, month, 1);
   const lastDay  = new Date(year, month + 1, 0);
-  // WHY day 0 of next month = last day of this month:
-  // Day 0 means "one day before day 1", so month+1, day 0 = last day of `month`.
-  // This is a common JS idiom.
 
   // Fill leading empty cells so day 1 falls on the correct column
   const weekday = getAdjWeekday(firstDay);
@@ -299,9 +226,7 @@ function renderMonthView() {
 
 // --- Week view (scaffold — expand for full implementation) ---
 
-// The HOUR_H constant (px per hour) is the single source of truth
-// that connects the CSS layout to the JS positioning math.
-// If you change it, update BOTH the constant here AND --hour-h in CSS.
+// If you change HOUR_H, update BOTH the constant here AND --hour-h in CSS.
 
 const HOUR_H = 32; // pixels per hour. Must match --hour-h in style.css
 
@@ -379,7 +304,7 @@ function renderWeekView() {
     col.className = 'week-day-col' + (isToday(day) ? ' today' : '');
  
     // ── Hour grid lines ──────────────────────────────────────────
-    // 24 divs, each HOUR_H tall. Purely visual.
+    // Purely visual.
     for (let h = 0; h < 24; h++) {
       const row = document.createElement('div');
       row.className = 'week-hour-row';
@@ -445,6 +370,8 @@ function renderWeekView() {
       openNewEventModal(clickedDate);
     });
 
+    //todo: check why not working
+
     daysWrap.appendChild(col)
   }
 
@@ -497,11 +424,7 @@ function createEventChip(ev) {
   chip.style.background  = ev.color;
 
   chip.addEventListener('click', (e) => {
-    // stopPropagation prevents the click from also triggering the cell's
-    // click handler (which would open a NEW event modal).
-    // Events "bubble up" the DOM tree — a click on a chip is also a click
-    // on its parent cell, grandparent, all the way to document.
-    // stopPropagation halts that bubbling.
+    // stop click event from propagating up the DOM tree
     e.stopPropagation();
     openEditEventModal(ev);
   });
@@ -521,15 +444,15 @@ function openNewEventModal(date) {
   // Pre-fill with the clicked date and a sensible default time
   elTitle.value      = '';
   elDate.value       = toDateInputValue(date);
-  elStartTime.value  = '09:00';
+  elStartTime.value  = '09:00'; //todo: is this the spot?
   elEndTime.value    = '10:00';
   elDesc.value       = '';
   elColor.value      = '#Bf8888';
   elRepeat.value     = '';
 
   openModal();
+
   // Focus the title field so the user can start typing immediately.
-  // Small UX touches like this matter a lot.
   elTitle.focus();
 }
 
@@ -611,11 +534,8 @@ function handleModalSave() {
 function handleModalDelete() {
   if (!editingId) return;
 
-  // Confirm before deleting — a simple guard against accidents.
   if (!confirm('Delete this event?')) return;
 
-  // .filter() returns a NEW array excluding the deleted event.
-  // This does NOT mutate the original array; it replaces it entirely.
   events = events.filter(ev => ev.id !== editingId);
 
   closeModal();
@@ -664,8 +584,5 @@ function weekRangeLabel(date) {
  */
 function formatTime(date) {
   if (!date) return '';
-  // toLocaleTimeString with these options gives "9:30 AM" in en-US.
-  // 'default' respects the user's locale, so it will use 24h format
-  // for users whose OS is set to a 24h locale.
   return date.toLocaleTimeString('default', { hour: 'numeric', minute: '2-digit' });
 }

@@ -166,32 +166,9 @@ export function eventsOnDay(events, date) {
   });
 }
 
-// /**
-//  * Returns all events that fall within a given week.
-//  * week is any Date within that week.
-//  *
-//  * @param {object[]} events
-//  * @param {Date} week
-//  * @returns {object[]}
-//  */
-// export function eventsInWeek(events, week) {
-//   const monday = startOfWeek(week);
-//   const sunday = new Date(monday);
-//   sunday.setDate(sunday.getDate() + 7);
-//   return events.filter(ev => ev.start >= monday && ev.start < sunday);
-// }
-
 // ============================================================
 // DATE UTILITIES
 // ============================================================
-//
-// JS QUIRK — Date mutation:
-// Date objects are mutable. date.setMonth(3) changes the date IN PLACE
-// and returns a timestamp (number), not a new Date.
-// This trips up everyone coming from Python where datetime objects
-// are immutable. Always clone before mutating:
-//   const clone = new Date(original); // ← correct
-//   clone.setMonth(3);
 
 export function startOfDay(date) {
   const d = new Date(date);
@@ -276,130 +253,6 @@ export function combineDateAndTime(dateStr, timeStr) {
 // ============================================================
 // PRIVATE HELPERS
 // ============================================================
-
-// function parseVEVENT(block) {
-//   try {
-//     // Extracts the value for a given iCal property key.
-//     // Handles both simple keys (SUMMARY:...) and keys with parameters
-//     // (DTSTART;TZID=America/New_York:...).
-//     const get = (key) => {
-//       // The regex: ^KEY matches at line start; [^:;]* skips any ;PARAM=VAL
-//       // parts; :(.+) captures everything after the colon.
-//       const re = new RegExp(`^${key}(?:[^:;]*)?:(.+)$`, 'm');
-//       const match = block.match(re);
-//       return match ? match[1].trim() : null;
-//     };
-
-//     const uid   = get('UID');
-//     const raw   = get('DTSTART');
-//     const allDay = raw && raw.length === 8; // "20241015" has no time component
-
-//     const rruleRaw = get('RRULE');
-//     let rrule = null;
-
-//     if(rruleRaw) {
-//       const parts = Object.fromEntries(
-//         rruleRaw.split(';').map(p => p.split('='))
-//       );
-
-//       rrule = {
-//         freq: parts.FREQ ?? null,
-//         interval: Number(parts.INTERVAL ?? 1)
-//       };
-//     }
-
-//     return {
-//       id:          uid ?? crypto.randomUUID(),
-//       title:       get('SUMMARY')     ?? '(No title)',
-//       start:       parseICSDate(get('DTSTART')),
-//       end:         parseICSDate(get('DTEND')),
-//       description: get('DESCRIPTION') ?? '',
-//       color:       get('COLOR')       ?? '#4f72ff',
-//       allDay,
-//       rrule,
-//     };
-//   } catch (e) {
-//     console.warn('Failed to parse VEVENT block:', e);
-//     return null;
-//   }
-// }
-
-// function serializeVEVENT(ev) {
-//   return [
-//     'BEGIN:VEVENT',
-//     `UID:${ev.id}`,
-//     `SUMMARY:${ev.title}`,
-//     `DTSTART:${toICSDate(ev.start, ev.allDay)}`,
-//     `DTEND:${toICSDate(ev.end,   ev.allDay)}`,
-//     `DESCRIPTION:${ev.description ?? ''}`,
-//     `COLOR:${ev.color ?? '#4f72ff'}`,
-//     ev.rrule ? `RRULE:FREQ=${ev.rrule.freq};INTERVAL=${ev.rrule.interval}` : null,
-//     'END:VEVENT',
-//   ].filter(Boolean).join('\r\n');
-// }
-
-// function parseICSDate(str) {
-//   if (!str) return null;
-//   // All-day: "20241015"
-//   if (str.length === 8) {
-//     return new Date(`${str.slice(0,4)}-${str.slice(4,6)}-${str.slice(6,8)}`);
-//   }
-//   // With time: "20241015T090000Z" or "20241015T090000"
-//   const hasZ  = str.endsWith('Z');
-//   const base  = str.replace('Z', '');
-//   const iso   = `${base.slice(0,4)}-${base.slice(4,6)}-${base.slice(6,8)}` +
-//                 `T${base.slice(9,11)}:${base.slice(11,13)}:${base.slice(13,15)}` +
-//                 (hasZ ? 'Z' : '');
-//   return new Date(iso);
-// }
-
-// function toICSDate(date, allDay = false) {
-//   if (!date) return '';
-//   if (allDay) {
-//     const y = date.getFullYear();
-//     const m = String(date.getMonth() + 1).padStart(2, '0');
-//     const d = String(date.getDate()).padStart(2, '0');
-//     return `${y}${m}${d}`;
-//   }
-//   // .toISOString() returns "2024-10-15T09:00:00.000Z"
-//   // Strip dashes, colons, and the milliseconds to get "20241015T090000Z"
-//   return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-// }
-
-// /* function occursOnDay(ev, date) { //replace with recursOnDay()
-//   const diffStart = Math.floor(
-//     (startOfDay(date) - startOfDay(ev.start)) / (1000 * 60 * 60 * 24)
-//   );
-
-//   const diffEnd = 0//rruleEnd(ev); //todo: implement event end
-
-//   if (diffStart < 0) return false;
-//   if (diffEnd < 0) return false;
-
-//   const interval = ev.rrule.interval ?? 1;
-
-//   switch (ev.rrule.freq) {
-//     case 'DAILY':
-//       return diffStart % interval === 0;
-    
-//     case 'WEEKLY':
-//       if (getAdjWeekday(date) !== getAdjWeekday(ev.start)) return false;
-//       return Math.floor(diffStart / 7) % interval === 0;
-
-//     case 'MONTHLY':
-//       if (date.getDate() !== ev.start.getDate()) return false;
-//       const months = ((date.getMonth() - ev.start.getMonth()) + 12 * (date.getFullYear() - ev.start.getFullYear()))
-//       return months % interval === 0;
-    
-//     case 'YEARLY': 
-//       return (
-//         date.getDate() === ev.start.getDate() && date.getMonth() === ev.start.getMonth()
-//       );
-    
-//     default:
-//       return false;
-//   }
-// } */
 
 function recursOnDay(ev, date) {
   const rule = ICAL.Recur.fromString(ev.rrule);
