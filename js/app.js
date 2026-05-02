@@ -232,7 +232,7 @@ function renderCalendar() {
   const weekdayHeaders = document.getElementById('weekday-headers');
   weekdayHeaders.style.display = currentView === 'month' ? '' : 'none';
 
-  elGrid.className = 'calendar-grid view-${currentView}';
+  elGrid.className = `calendar-grid view-${currentView}`;
 
   // Update the period label in the header
   if (currentView === 'month') {
@@ -393,12 +393,6 @@ function renderWeekView() {
     // ── Positioned events ────────────────────────────────────────
     // For each event, calculate top and height in pixels from the
     // fractional hour values of start/end time.
-    //
-    // Example: event from 09:30 to 10:45
-    //   startH  = 9 + 30/60  = 9.5
-    //   endH    = 10 + 45/60 = 10.75
-    //   top     = 9.5  * 64  = 608px
-    //   height  = 1.25 * 64  = 80px
     for (const ev of dayEvents) {
       if (ev.allDay) continue; // all-day events stay in month-chip style
  
@@ -550,7 +544,7 @@ function openEditEventModal(ev) {
   elEndTime.value   = toTimeInputValue(ev.end ?? ev.start);
   elDesc.value      = ev.description ?? '';
   elColor.value     = ev.color ?? '#4f72ff';
-  //todo: add repeat value
+  elRepeat.value    = ev.rrule?.freq ?? '';
 
   openModal();
 }
@@ -579,6 +573,7 @@ function handleModalSave() {
   const start = combineDateAndTime(elDate.value, elStartTime.value);
   const end   = combineDateAndTime(elDate.value, elEndTime.value);
   const repeat = elRepeat.value || null;
+  const rrule = repeat ? { freq: repeat, interval: 1 } : null;
 
   if (editingId) {
     // Update existing event: find it and replace its fields.
@@ -590,7 +585,8 @@ function handleModalSave() {
       // "Update an object" without mutating the original.
       events[idx] = { ...events[idx], title, start, end,
                       description: elDesc.value,
-                      color: elColor.value };
+                      color: elColor.value,
+                      rrule };
     }
     // todo: handle not found case
   } else {
