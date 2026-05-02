@@ -319,8 +319,9 @@ function serializeVEVENT(ev) {
     `DTEND:${toICSDate(ev.end,   ev.allDay)}`,
     `DESCRIPTION:${ev.description ?? ''}`,
     `COLOR:${ev.color ?? '#4f72ff'}`,
+    ev.rrule ? `RRULE:FREQ=${ev.rrule.freq};INTERVAL=${ev.rrule.interval}` : null,
     'END:VEVENT',
-  ].join('\r\n');
+  ].filter(Boolean).join('\r\n');
 }
 
 function parseICSDate(str) {
