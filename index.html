@@ -113,13 +113,6 @@
       </div>
 
       <div class="modal-body">
-        <!--
-          WHY no <form>: We use divs + buttons instead of a <form> element.
-          <form> has default submit behaviour that sends an HTTP request and
-          reloads the page — the opposite of what a JS app wants. You can
-          suppress it with event.preventDefault(), but avoiding <form>
-          entirely is simpler until you understand the nuance.
-        -->
 
         <div class="field-group">
           <label for="event-title">Title</label>
@@ -151,6 +144,40 @@
             <option value="YEARLY">Yearly</option>
           </select>
         </div>
+
+        <!--draft recurrence ui-->
+
+        <div class="field-group">
+          <label for="repeat-interval">Interval</label>
+          <input type="number" id="repeat-interval" min="1" value="1">
+        </div>
+
+        <div class="field-group" id="repeat-weekdays">
+          <label>Days</label>
+          <div class="weekday-picker">
+            <label><input type="checkbox" value="MO">Mon</label>
+            <label><input type="checkbox" value="TU">Tue</label>
+            <label><input type="checkbox" value="WE">Wed</label>
+            <label><input type="checkbox" value="TH">Thu</label>
+            <label><input type="checkbox" value="FR">Fri</label>
+            <label><input type="checkbox" value="SA">Sat</label>
+            <label><input type="checkbox" value="SU">Sun</label>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label>Ends</label>
+          <select id="repeat-end-type">
+            <option value="">Never</option>
+            <option value="COUNT">After occurrences</option>
+            <option value="UNTIL">On date</option>
+          </select>
+
+          <input type="number" id="repeat-count" min="1">
+          <input type="date" id="repeat-until">
+        </div>
+
+        <!--/draft recurrence ui-->
 
         <div class="field-group">
           <label for="event-description">Description</label>
