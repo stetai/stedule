@@ -69,7 +69,7 @@
  * @param {boolean}[params.allDay=false]
  * @returns {object} event
  */
-export function createEvent({ title, start, end, description = '', color = '#4f72ff', allDay = false }) {
+export function createEvent({ title, start, end, description = '', color = '#4f72ff', allDay = false, rrule = null }) {
   return {
     id: crypto.randomUUID(),
     title,
@@ -78,6 +78,7 @@ export function createEvent({ title, start, end, description = '', color = '#4f7
     description,
     color,
     allDay,
+    rrule,
   };
 }
 
@@ -279,6 +280,20 @@ function parseVEVENT(block) {
     const raw   = get('DTSTART');
     const allDay = raw && raw.length === 8; // "20241015" has no time component
 
+    const rruleRaw = get('RRULE');
+    let rrule = null;
+
+    if(rruleRaw) {
+      const parts = Object.fromEntries(
+        rruleRaw.split(';').map(p => p.split('='))
+      );
+
+      rrule = {
+        freq: parts.FREQ ?? null,
+        interval: Number(parts.INTERVAL ?? 1)
+      };
+    }
+
     return {
       id:          uid ?? crypto.randomUUID(),
       title:       get('SUMMARY')     ?? '(No title)',
@@ -287,6 +302,7 @@ function parseVEVENT(block) {
       description: get('DESCRIPTION') ?? '',
       color:       get('COLOR')       ?? '#4f72ff',
       allDay,
+      rrule,
     };
   } catch (e) {
     console.warn('Failed to parse VEVENT block:', e);
