@@ -250,6 +250,10 @@ export function combineDateAndTime(dateStr, timeStr) {
   return new Date(`${dateStr}T${timeStr}`);
 }
 
+export function parseRRule(rruleStr) {
+  return ICAL.Recur.fromString(rruleStr);
+}
+
 // ============================================================
 // PRIVATE HELPERS
 // ============================================================

@@ -2,18 +2,18 @@
  * app.js — UI Controller
  */
 
+const v = new URL(import.meta.url).search;
+
 import {
   openFile, writeFile, reloadFile, hasFileOpen, getFileName, canWriteInPlace
 } from './storage.js';
 
 import {
   parseICS, serializeICS, createEvent,
-  eventsOnDay,
-  isSameDay, isToday, startOfWeek,
+  eventsOnDay, parseRRule, getAdjWeekday,
+  isToday, startOfWeek,
   toDateInputValue, toTimeInputValue, combineDateAndTime,
 } from './calendar.js';
-
-import { getAdjWeekday } from './calendar.js';
 
 // ============================================================
 // APPLICATION STATE
@@ -469,8 +469,6 @@ function openNewEventModal(date) {
 
   updateRepeatUI();
 
-  elRepeat.addEventListener("change", updateRepeatUI);
-
   openModal();
 
   // Focus the title field so the user can start typing immediately.
@@ -488,18 +486,21 @@ function updateRepeatUI() {
   if (!freq) return;
 
   if (freq === "WEEKLY") {
-    elRepeatWeekdays.style.display = '';
+    elRepeatWeekdays.style.display = 'flex';
+
+    const weekday = ["SU","MO","TU","WE","TH","FR","SA"][new Date(elDate.value).getDay()];
+
+    const cb = document.querySelector(`#repeat-weekdays input[value="${weekday}"]`);
+    if (cb && !document.querySelector("#repeat-weekdays input:checked")) {
+      cb.checked = true;
+    }
   }
 
   const endType = elRepeatEndType.value;
 
-  if (endType === "COUNT") {
-    elRepeatCount.style.display = '';
-  }
+  if (endType === "COUNT") elRepeatCount.style.display = 'block';
 
-  if (endType === "UNTIL") {
-    elRepeatUntil.style.display = '';
-  }
+  if (endType === "UNTIL") elRepeatUntil.style.display = 'block';
 }
 
 function openEditEventModal(ev) {
@@ -515,7 +516,7 @@ function openEditEventModal(ev) {
   elColor.value     = ev.color ?? '#bf8888';
 
   if (ev.rrule) {
-    const recur = ICAL.Recur.fromString(ev.rrule);
+    const recur = parseRRule(ev.rrule);
 
     elRepeat.value = recur.freq ?? '';
     elRepeatInterval.value = recur.interval ?? 1;
@@ -579,7 +580,7 @@ function handleModalSave() {
     const parts = [];
     parts.push(`FREQ=${repeat}`);
 
-    const interval = document.getElementById("repeat-interval").value;
+    const interval = elRepeatInterval.value;
     if (interval && interval > 1) {
       parts.push(`INTERVAL=${interval}`);
     }
@@ -592,15 +593,15 @@ function handleModalSave() {
       }
     }
 
-    const endType = document.getElementById("repeat-end-type").value;
+    const endType = elRepeatEndType.value;
 
     if (endType === "COUNT") {
-      const count = document.getElementById("repeat-count").value;
+      const count = elRepeatCount.value;
       parts.push(`COUNT=${count}`);
     }
 
     if (endType === "UNTIL") {
-      const until = document.getElementById("repeat-until").value;
+      const until = elRepeatUntil.value;
       if (until) {
         parts.push(`UNTIL=${until.replace(/-/g,'')}T235959`);
       }
