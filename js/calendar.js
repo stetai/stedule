@@ -371,11 +371,11 @@ function occursOnDay(ev, date) {
 
   switch (ev.rrule.freq) {
     case 'DAILY':
-      return diffDays % interval === 0;
+      return diffStart % interval === 0;
     
     case 'WEEKLY':
       if (date.getDate() !== ev.start.getDay()) return false;
-      return Math.floor(diffDays / 7) % interval === 0;
+      return Math.floor(diffStart / 7) % interval === 0;
 
     case 'MONTHLY':
       if (date.getDate() !== ev.start.getDate()) return false;
