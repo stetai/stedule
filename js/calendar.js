@@ -148,7 +148,12 @@ export function eventsOnDay(events, date) {
 
   return events.filter(ev => {
     if (!ev.start) return false;
-    return ev.start < dayEnd && (ev.end ?? ev.start) > dayStart;
+
+    if (!ev.rrule) {
+      return ev.start < dayEnd && (ev.end ?? ev.start) > dayStart;
+    }
+
+    return occursOnDay(ev, date);
   });
 }
 
@@ -348,6 +353,37 @@ function toICSDate(date, allDay = false) {
     return `${y}${m}${d}`;
   }
   // .toISOString() returns "2024-10-15T09:00:00.000Z"
-  // We strip dashes, colons, and the milliseconds to get "20241015T090000Z"
+  // Strip dashes, colons, and the milliseconds to get "20241015T090000Z"
   return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+}
+
+function occursOnDay(ev, date) {
+  const diffDays = Math.floor(
+    (startOfDay(date) - startOfDay(ev.start)) / (1000 * 60 * 60 * 24)
+  );
+
+  if (diffDays < 0) return false;
+
+  const interval = ev.rule.interval ?? 1;
+
+  switch (ev.rrule.freq) {
+    case 'DAILY':
+      return diffDays % interval === 0;
+    
+    case 'WEEKLY':
+      if (date.getDate() !== ev.start.getDay()) return false;
+      return Math.floor(diffDays / 7) % interval === 0;
+
+    case 'MONTHLY':
+      if (date.getDate() !== ev.start.getDate()) return false;
+      return ((date.getMonth() - ev.start.getMonth()) + 12 * (date.getFullYear() - ev.start.getFullYear())) % interval === 0;
+    
+    case 'YEARLY': 
+      return (
+        date.getDate() === ev.start.getDate() && date.getMonth() === ev.start.getMonth()
+      );
+    
+    default:
+      return false;
+  }
 }
