@@ -358,13 +358,16 @@ function toICSDate(date, allDay = false) {
 }
 
 function occursOnDay(ev, date) {
-  const diffDays = Math.floor(
+  const diffStart = Math.floor(
     (startOfDay(date) - startOfDay(ev.start)) / (1000 * 60 * 60 * 24)
   );
 
-  if (diffDays < 0) return false;
+  const diffEnd = 0//rruleEnd(ev); //todo: implement event end
 
-  const interval = ev.rule.interval ?? 1;
+  if (diffStart < 0) return false;
+  if (diffEnd < 0) return false;
+
+  const interval = ev.rrule.interval ?? 1;
 
   switch (ev.rrule.freq) {
     case 'DAILY':
