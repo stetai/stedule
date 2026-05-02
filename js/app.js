@@ -25,7 +25,7 @@ import {
 
 import {
   parseICS, serializeICS, createEvent,
-  eventsOnDay, eventsInWeek,
+  eventsOnDay, /*eventsInWeek,*/
   isSameDay, isToday, startOfWeek,
   toDateInputValue, toTimeInputValue, combineDateAndTime,
 } from './calendar.js';
@@ -524,7 +524,7 @@ function openNewEventModal(date) {
   elStartTime.value  = '09:00';
   elEndTime.value    = '10:00';
   elDesc.value       = '';
-  elColor.value      = '#4f72ff';
+  elColor.value      = '#Bf8888';
   elRepeat.value     = '';
 
   openModal();
@@ -543,8 +543,10 @@ function openEditEventModal(ev) {
   elStartTime.value = toTimeInputValue(ev.start);
   elEndTime.value   = toTimeInputValue(ev.end ?? ev.start);
   elDesc.value      = ev.description ?? '';
-  elColor.value     = ev.color ?? '#4f72ff';
-  elRepeat.value    = ev.rrule?.freq ?? '';
+  elColor.value     = ev.color ?? '#bf8888';
+
+  const freq = ev.rrule?.match(/FREQ=([^;]+)/)?.[1] ?? '';
+  elRepeat.value = freq;
 
   openModal();
 }
@@ -573,7 +575,7 @@ function handleModalSave() {
   const start = combineDateAndTime(elDate.value, elStartTime.value);
   const end   = combineDateAndTime(elDate.value, elEndTime.value);
   const repeat = elRepeat.value || null;
-  const rrule = repeat ? { freq: repeat, interval: 1 } : null;
+  const rrule = repeat ? `FREQ=${repeat};INTERVAL=1` : null;
 
   if (editingId) {
     // Update existing event: find it and replace its fields.
@@ -597,7 +599,7 @@ function handleModalSave() {
       end,
       description: elDesc.value,
       color: elColor.value,
-      rrule: repeat  ? { freq: repeat, interval: 1 } : null,
+      rrule: repeat  ? `FREQ=${repeat};INTERVAL=1` : null,
     }));
   }
 

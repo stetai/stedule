@@ -1,23 +1,10 @@
 <!DOCTYPE html>
-<!--
-  WHY DOCTYPE: This first line tells the browser to use modern "standards mode".
-  Without it, browsers fall back to "quirks mode" — legacy behaviour from the 1990s
-  that will make your CSS behave unexpectedly. Always include it.
--->
+
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <!--
-    WHY charset: Declares the text encoding. Without it, special characters like
-    accented letters or emoji may render as garbage. UTF-8 covers every human script.
-  -->
+  <meta charset="UTF-8" />  <!--text encoding.-->
 
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!--
-    WHY viewport: Without this, mobile browsers pretend your page is ~980px wide
-    and zoom out. This tag tells them to use the actual device width instead.
-    Essential for Android support.
-  -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />  <!--Scale correctly for Android support.-->
 
   <title>Stedule</title>
 
@@ -34,23 +21,22 @@
   />
 
   <link rel="stylesheet" href="style.css" />
-
+  
   <!--
-    WHY type="module": ES Modules are the modern standard for splitting JS into
-    multiple files. Without this attribute, the browser treats your script as a
-    single global file and import/export statements will throw a SyntaxError.
+    Open via http.server.
 
-    Key quirk: type="module" scripts are ALWAYS deferred — they run after the
-    HTML is parsed. This means you don't need a DOMContentLoaded wrapper in
-    app.js, but we include one anyway to make the dependency explicit and to
-    teach the pattern clearly.
-
-    IMPORTANT: ES modules require a server — they will not work if you open
-    index.html directly via file:// in most browsers due to CORS restrictions.
-    Run: python -m http.server 8080
-    Then open: http://localhost:8080
+    Use ical.js functionality.
+    Enable import/export statements.
   -->
+  <script src="https://cdn.jsdelivr.net/npm/ical.js/build/ical.js"></script>
+  <!--
   <script type="module" src="js/app.js"></script>
+  replaced by:
+  -->
+  <script>
+    const v = Date.now();
+    document.write(`<script type="module" src="js/app.js?v=${v}"><\/script>`);
+  </script>
 </head>
 
 <body>

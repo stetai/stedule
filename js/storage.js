@@ -159,7 +159,7 @@ function _openFirefox() {
       const file = input.files?.[0];
  
       if (!file) {
-        reject(Object.assign(new DOMException('User cancelled'), { name: 'AbortError' }));
+        reject(new DOMException('User cancelled', 'AbortError'));
         input.remove();
         return;
       }

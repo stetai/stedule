@@ -1,56 +1,11 @@
 /**
  * calendar.js — Event data model and iCalendar parser/serializer
- *
- * WHY THIS FILE EXISTS:
- * This module owns the "shape" of data. It knows:
- *   - What an event object looks like
- *   - How to parse raw .ics text into event objects
- *   - How to serialize event objects back to .ics text
- *
- * app.js never touches raw .ics strings — it only works with
- * the plain JS objects this module produces. This separation
- * means you could swap the file format (e.g. to JSON) by only
- * changing THIS file.
- *
- * WHAT IS iCal / .ics?
- * RFC 5545 is the standard. A .ics file looks like:
- *
- *   BEGIN:VCALENDAR
- *   VERSION:2.0
- *   BEGIN:VEVENT
- *   UID:abc-123
- *   SUMMARY:Team meeting
- *   DTSTART:20241015T090000Z
- *   DTEND:20241015T100000Z
- *   END:VEVENT
- *   END:VCALENDAR
- *
- * We implement a practical subset — enough for single-file personal
- * use. For recurring events and timezone complexity, ical.js is the
- * right library to add later.
  */
 
-// ============================================================
-// THE EVENT OBJECT SHAPE
-// ============================================================
-//
-// JS QUIRK — no classes required:
-// Unlike Java, you don't need a class to define a "type". A plain
-// JS object { id, title, start, end } is perfectly valid and idiomatic.
-// We use a factory function (createEvent) instead of `new Event()`
-// because factory functions are simpler and don't require understanding
-// `this`, `new`, or prototype chains yet.
-//
-// An event object looks like:
-// {
-//   id:          string  — unique identifier (UUID)
-//   title:       string  — display name
-//   start:       Date    — JS Date object (has timezone info)
-//   end:         Date    — JS Date object
-//   description: string  — optional notes
-//   color:       string  — CSS hex color, e.g. "#4f72ff"
-//   allDay:      boolean — if true, no time component
-// }
+const ICAL = window.ICAL;
+if (!ICAL) {
+  throw new Error("ical.js failed to load — window.ICAL is undefined");
+}
 
 // ============================================================
 // FACTORY FUNCTION
@@ -65,11 +20,11 @@
  * @param {Date}   params.start
  * @param {Date}   params.end
  * @param {string} [params.description='']
- * @param {string} [params.color='#4f72ff']
+ * @param {string} [params.color='#Bf8888']
  * @param {boolean}[params.allDay=false]
  * @returns {object} event
  */
-export function createEvent({ title, start, end, description = '', color = '#4f72ff', allDay = false, rrule = null }) {
+export function createEvent({ title, start, end, description = '', color = '#Bf8888', allDay = false, rrule = null }) {
   return {
     id: crypto.randomUUID(),
     title,
@@ -79,11 +34,12 @@ export function createEvent({ title, start, end, description = '', color = '#4f7
     color,
     allDay,
     rrule,
+    exdates: []
   };
 }
 
 // ============================================================
-// PARSING: raw .ics string → array of event objects
+// PARSING
 // ============================================================
 
 /**
@@ -93,17 +49,34 @@ export function createEvent({ title, start, end, description = '', color = '#4f7
  * @returns {object[]} Array of event objects
  */
 export function parseICS(rawText) {
-  // JS QUIRK — RegExp and the 's' flag:
-  // [\s\S]*? means "any character including newlines, as few as possible".
-  // The 'g' flag means "find ALL matches, not just the first".
-  // Without 'g', .match() returns only the first VEVENT block.
-  const eventBlocks = rawText.match(/BEGIN:VEVENT[\s\S]*?END:VEVENT/g);
+  const jcal = ICAL.parse(rawText);
+  const comp = new ICAL.Component(jcal);
 
-  const blocks = eventBlocks ?? [];
+  const vevents = comp.getAllSubcomponents('vevent');
 
-  return blocks.map(parseVEVENT).filter(ev => ev !== null);
-  // .map() transforms each element; .filter() removes nulls from failed parses
+  return vevents.map(v => {
+    const ev = new ICAL.Event(v);
+
+    const rruleProp = v.getFirstPropertyValue('rrule');
+    const exdateProps = v.getAllProperties('exdate');
+
+    return {
+      id: ev.uid ?? crypto.randomUUID(),
+      title: ev.summary ?? '(No title)',
+      start: ev.startDate?.toJSDate(),
+      end: ev.endDate?.toJSDate(),
+      description: ev.description ?? '',
+      color: v.getFirstPropertyValue('color') ?? '#Bf8888',
+      allDay: ev.startDate?.isDate ?? false,
+      rrule: rruleProp ? rruleProp.toString() : null,
+      exdates: exdateProps.map(p => p.getFirstValue().toJSDate())
+    };
+  });
 }
+
+// ============================================================
+// SERIALIZATION
+// ============================================================
 
 /**
  * Serializes an array of event objects back to a .ics file string.
@@ -112,25 +85,61 @@ export function parseICS(rawText) {
  * @returns {string} Complete .ics file contents
  */
 export function serializeICS(events) {
-  // JS QUIRK — template literals (backtick strings):
-  // `Hello ${name}` is equivalent to Python's f"Hello {name}".
-  // They can also span multiple lines without escape characters.
+  const vcal = new ICAL.Component(['vcalendar', [], []]);
 
-  const vevents = events.map(serializeVEVENT).join('\r\n');
+  vcal.addPropertyWithValue('version', '2.0');
+  vcal.addPropertyWithValue('prodid', '-//Stedule//Stedule 1.0//EN');
+  vcal.addPropertyWithValue('calscale', 'GREGORIAN');
 
-  // iCal spec (RFC 5545) mandates CRLF (\r\n) line endings.
-  return [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//LocalCal//LocalCal 1.0//EN',
-    'CALSCALE:GREGORIAN',
-    vevents,
-    'END:VCALENDAR',
-  ].join('\r\n');
+  for (const ev of events) {
+    const vevent = new ICAL.Component('vevent');
+
+    vevent.addPropertyWithValue('uid', ev.id);
+    vevent.addPropertyWithValue('summary', ev.title);
+    vevent.addPropertyWithValue(
+      'dtstart',
+      ICAL.Time.fromJSDate(ev.start, ev.allDay)
+    );
+
+    if (ev.end) {
+      vevent.addPropertyWithValue(
+        'dtend',
+        ICAL.Time.fromJSDate(ev.end, ev.allDay)
+      );
+    }
+
+    if (ev.description) {
+      vevent.addPropertyWithValue('description', ev.description);
+    }
+
+    if (ev.color) {
+      vevent.addPropertyWithValue('color', ev.color);
+    }
+
+    if (ev.rrule) {
+      vevent.addPropertyWithValue(
+        'rrule',
+        ICAL.Recur.fromString(ev.rrule)
+      );
+    }
+
+    if (ev.exdates) {
+      for (const ex of ev.exdates) {
+        vevent.addPropertyWithValue(
+          'exdate',
+          ICAL.Time.fromJSDate(ex)
+        );
+      }
+    }
+
+    vcal.addSubcomponent(vevent);
+  }
+
+  return vcal.toString();
 }
 
 // ============================================================
-// QUERY HELPERS
+// EVENT QUERYING
 // ============================================================
 
 /**
@@ -153,24 +162,24 @@ export function eventsOnDay(events, date) {
       return ev.start < dayEnd && (ev.end ?? ev.start) > dayStart;
     }
 
-    return occursOnDay(ev, date);
+    return recursOnDay(ev, date);
   });
 }
 
-/**
- * Returns all events that fall within a given week.
- * week is any Date within that week.
- *
- * @param {object[]} events
- * @param {Date} week
- * @returns {object[]}
- */
-export function eventsInWeek(events, week) {
-  const monday = startOfWeek(week);
-  const sunday = new Date(monday);
-  sunday.setDate(sunday.getDate() + 7);
-  return events.filter(ev => ev.start >= monday && ev.start < sunday);
-}
+// /**
+//  * Returns all events that fall within a given week.
+//  * week is any Date within that week.
+//  *
+//  * @param {object[]} events
+//  * @param {Date} week
+//  * @returns {object[]}
+//  */
+// export function eventsInWeek(events, week) {
+//   const monday = startOfWeek(week);
+//   const sunday = new Date(monday);
+//   sunday.setDate(sunday.getDate() + 7);
+//   return events.filter(ev => ev.start >= monday && ev.start < sunday);
+// }
 
 // ============================================================
 // DATE UTILITIES
@@ -235,7 +244,7 @@ export function isToday(date) {
 export function toDateInputValue(date) {
   if (!date) return '';
   const y  = date.getFullYear();
-  const m  = String(date.getMonth() + 1).padStart(2, '0'); // months are 0-indexed!
+  const m  = String(date.getMonth() + 1).padStart(2, '0'); 
   const d  = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 }
@@ -268,126 +277,156 @@ export function combineDateAndTime(dateStr, timeStr) {
 // PRIVATE HELPERS
 // ============================================================
 
-function parseVEVENT(block) {
-  try {
-    // Extracts the value for a given iCal property key.
-    // Handles both simple keys (SUMMARY:...) and keys with parameters
-    // (DTSTART;TZID=America/New_York:...).
-    const get = (key) => {
-      // The regex: ^KEY matches at line start; [^:;]* skips any ;PARAM=VAL
-      // parts; :(.+) captures everything after the colon.
-      const re = new RegExp(`^${key}(?:[^:;]*)?:(.+)$`, 'm');
-      const match = block.match(re);
-      return match ? match[1].trim() : null;
-    };
+// function parseVEVENT(block) {
+//   try {
+//     // Extracts the value for a given iCal property key.
+//     // Handles both simple keys (SUMMARY:...) and keys with parameters
+//     // (DTSTART;TZID=America/New_York:...).
+//     const get = (key) => {
+//       // The regex: ^KEY matches at line start; [^:;]* skips any ;PARAM=VAL
+//       // parts; :(.+) captures everything after the colon.
+//       const re = new RegExp(`^${key}(?:[^:;]*)?:(.+)$`, 'm');
+//       const match = block.match(re);
+//       return match ? match[1].trim() : null;
+//     };
 
-    const uid   = get('UID');
-    const raw   = get('DTSTART');
-    const allDay = raw && raw.length === 8; // "20241015" has no time component
+//     const uid   = get('UID');
+//     const raw   = get('DTSTART');
+//     const allDay = raw && raw.length === 8; // "20241015" has no time component
 
-    const rruleRaw = get('RRULE');
-    let rrule = null;
+//     const rruleRaw = get('RRULE');
+//     let rrule = null;
 
-    if(rruleRaw) {
-      const parts = Object.fromEntries(
-        rruleRaw.split(';').map(p => p.split('='))
-      );
+//     if(rruleRaw) {
+//       const parts = Object.fromEntries(
+//         rruleRaw.split(';').map(p => p.split('='))
+//       );
 
-      rrule = {
-        freq: parts.FREQ ?? null,
-        interval: Number(parts.INTERVAL ?? 1)
-      };
+//       rrule = {
+//         freq: parts.FREQ ?? null,
+//         interval: Number(parts.INTERVAL ?? 1)
+//       };
+//     }
+
+//     return {
+//       id:          uid ?? crypto.randomUUID(),
+//       title:       get('SUMMARY')     ?? '(No title)',
+//       start:       parseICSDate(get('DTSTART')),
+//       end:         parseICSDate(get('DTEND')),
+//       description: get('DESCRIPTION') ?? '',
+//       color:       get('COLOR')       ?? '#4f72ff',
+//       allDay,
+//       rrule,
+//     };
+//   } catch (e) {
+//     console.warn('Failed to parse VEVENT block:', e);
+//     return null;
+//   }
+// }
+
+// function serializeVEVENT(ev) {
+//   return [
+//     'BEGIN:VEVENT',
+//     `UID:${ev.id}`,
+//     `SUMMARY:${ev.title}`,
+//     `DTSTART:${toICSDate(ev.start, ev.allDay)}`,
+//     `DTEND:${toICSDate(ev.end,   ev.allDay)}`,
+//     `DESCRIPTION:${ev.description ?? ''}`,
+//     `COLOR:${ev.color ?? '#4f72ff'}`,
+//     ev.rrule ? `RRULE:FREQ=${ev.rrule.freq};INTERVAL=${ev.rrule.interval}` : null,
+//     'END:VEVENT',
+//   ].filter(Boolean).join('\r\n');
+// }
+
+// function parseICSDate(str) {
+//   if (!str) return null;
+//   // All-day: "20241015"
+//   if (str.length === 8) {
+//     return new Date(`${str.slice(0,4)}-${str.slice(4,6)}-${str.slice(6,8)}`);
+//   }
+//   // With time: "20241015T090000Z" or "20241015T090000"
+//   const hasZ  = str.endsWith('Z');
+//   const base  = str.replace('Z', '');
+//   const iso   = `${base.slice(0,4)}-${base.slice(4,6)}-${base.slice(6,8)}` +
+//                 `T${base.slice(9,11)}:${base.slice(11,13)}:${base.slice(13,15)}` +
+//                 (hasZ ? 'Z' : '');
+//   return new Date(iso);
+// }
+
+// function toICSDate(date, allDay = false) {
+//   if (!date) return '';
+//   if (allDay) {
+//     const y = date.getFullYear();
+//     const m = String(date.getMonth() + 1).padStart(2, '0');
+//     const d = String(date.getDate()).padStart(2, '0');
+//     return `${y}${m}${d}`;
+//   }
+//   // .toISOString() returns "2024-10-15T09:00:00.000Z"
+//   // Strip dashes, colons, and the milliseconds to get "20241015T090000Z"
+//   return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+// }
+
+// /* function occursOnDay(ev, date) { //replace with recursOnDay()
+//   const diffStart = Math.floor(
+//     (startOfDay(date) - startOfDay(ev.start)) / (1000 * 60 * 60 * 24)
+//   );
+
+//   const diffEnd = 0//rruleEnd(ev); //todo: implement event end
+
+//   if (diffStart < 0) return false;
+//   if (diffEnd < 0) return false;
+
+//   const interval = ev.rrule.interval ?? 1;
+
+//   switch (ev.rrule.freq) {
+//     case 'DAILY':
+//       return diffStart % interval === 0;
+    
+//     case 'WEEKLY':
+//       if (getAdjWeekday(date) !== getAdjWeekday(ev.start)) return false;
+//       return Math.floor(diffStart / 7) % interval === 0;
+
+//     case 'MONTHLY':
+//       if (date.getDate() !== ev.start.getDate()) return false;
+//       const months = ((date.getMonth() - ev.start.getMonth()) + 12 * (date.getFullYear() - ev.start.getFullYear()))
+//       return months % interval === 0;
+    
+//     case 'YEARLY': 
+//       return (
+//         date.getDate() === ev.start.getDate() && date.getMonth() === ev.start.getMonth()
+//       );
+    
+//     default:
+//       return false;
+//   }
+// } */
+
+function recursOnDay(ev, date) {
+  const rule = ICAL.Recur.fromString(ev.rrule);
+  const startTime = ICAL.Time.fromJSDate(ev.start);
+
+  const iter = rule.iterator(startTime);
+
+  const dayStart = ICAL.Time.fromJSDate(startOfDay(date));
+  const dayEnd = ICAL.Time.fromJSDate(endOfDay(date));
+
+  let next;
+
+  while ((next = iter.next())) {
+
+    if (next.compare(dayEnd) > 0) break;
+
+    const js = next.toJSDate();
+
+    if (js >= dayStart.toJSDate()&& js <= dayEnd.toJSDate()) {
+      
+      if (ev.exdates?.some(d => isSameDay(d, js))) {
+        continue;
+      }
+
+      return true;
     }
-
-    return {
-      id:          uid ?? crypto.randomUUID(),
-      title:       get('SUMMARY')     ?? '(No title)',
-      start:       parseICSDate(get('DTSTART')),
-      end:         parseICSDate(get('DTEND')),
-      description: get('DESCRIPTION') ?? '',
-      color:       get('COLOR')       ?? '#4f72ff',
-      allDay,
-      rrule,
-    };
-  } catch (e) {
-    console.warn('Failed to parse VEVENT block:', e);
-    return null;
   }
-}
 
-function serializeVEVENT(ev) {
-  return [
-    'BEGIN:VEVENT',
-    `UID:${ev.id}`,
-    `SUMMARY:${ev.title}`,
-    `DTSTART:${toICSDate(ev.start, ev.allDay)}`,
-    `DTEND:${toICSDate(ev.end,   ev.allDay)}`,
-    `DESCRIPTION:${ev.description ?? ''}`,
-    `COLOR:${ev.color ?? '#4f72ff'}`,
-    ev.rrule ? `RRULE:FREQ=${ev.rrule.freq};INTERVAL=${ev.rrule.interval}` : null,
-    'END:VEVENT',
-  ].filter(Boolean).join('\r\n');
-}
-
-function parseICSDate(str) {
-  if (!str) return null;
-  // All-day: "20241015"
-  if (str.length === 8) {
-    return new Date(`${str.slice(0,4)}-${str.slice(4,6)}-${str.slice(6,8)}`);
-  }
-  // With time: "20241015T090000Z" or "20241015T090000"
-  const hasZ  = str.endsWith('Z');
-  const base  = str.replace('Z', '');
-  const iso   = `${base.slice(0,4)}-${base.slice(4,6)}-${base.slice(6,8)}` +
-                `T${base.slice(9,11)}:${base.slice(11,13)}:${base.slice(13,15)}` +
-                (hasZ ? 'Z' : '');
-  return new Date(iso);
-}
-
-function toICSDate(date, allDay = false) {
-  if (!date) return '';
-  if (allDay) {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}${m}${d}`;
-  }
-  // .toISOString() returns "2024-10-15T09:00:00.000Z"
-  // Strip dashes, colons, and the milliseconds to get "20241015T090000Z"
-  return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-}
-
-function occursOnDay(ev, date) {
-  const diffStart = Math.floor(
-    (startOfDay(date) - startOfDay(ev.start)) / (1000 * 60 * 60 * 24)
-  );
-
-  const diffEnd = 0//rruleEnd(ev); //todo: implement event end
-
-  if (diffStart < 0) return false;
-  if (diffEnd < 0) return false;
-
-  const interval = ev.rrule.interval ?? 1;
-
-  switch (ev.rrule.freq) {
-    case 'DAILY':
-      return diffStart % interval === 0;
-    
-    case 'WEEKLY':
-      if (getAdjWeekday(date) !== getAdjWeekday(ev.start)) return false;
-      return Math.floor(diffStart / 7) % interval === 0;
-
-    case 'MONTHLY':
-      if (date.getDate() !== ev.start.getDate()) return false;
-      const months = ((date.getMonth() - ev.start.getMonth()) + 12 * (date.getFullYear() - ev.start.getFullYear()))
-      return months % interval === 0;
-    
-    case 'YEARLY': 
-      return (
-        date.getDate() === ev.start.getDate() && date.getMonth() === ev.start.getMonth()
-      );
-    
-    default:
-      return false;
-  }
+  return false;
 }
