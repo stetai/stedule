@@ -30,7 +30,7 @@ import {
   toDateInputValue, toTimeInputValue, combineDateAndTime,
 } from './calendar.js';
 
-import { getFirstWeekday } from './calendar.js';
+import { getAdjWeekday } from './calendar.js';
 
 // ============================================================
 // APPLICATION STATE
@@ -75,6 +75,7 @@ const elDate       = $('event-date');
 const elWeekdays   = $('weekday-headers');
 const elStartTime  = $('event-start-time');
 const elEndTime    = $('event-end-time');
+const elRepeat     = $('event-repeat');
 const elDesc       = $('event-description');
 const elColor      = $('event-color');
 const elDeleteBtn  = $('modal-delete');
@@ -281,7 +282,7 @@ function renderMonthView() {
   // This is a common JS idiom.
 
   // Fill leading empty cells so day 1 falls on the correct column
-  const weekday = getFirstWeekday(firstDay);
+  const weekday = getAdjWeekday(firstDay);
 
   for (let i = 0; i < weekday; i++) {
     const empty = document.createElement('div');
@@ -530,6 +531,7 @@ function openNewEventModal(date) {
   elEndTime.value    = '10:00';
   elDesc.value       = '';
   elColor.value      = '#4f72ff';
+  elRepeat.value     = '';
 
   openModal();
   // Focus the title field so the user can start typing immediately.
@@ -548,6 +550,7 @@ function openEditEventModal(ev) {
   elEndTime.value   = toTimeInputValue(ev.end ?? ev.start);
   elDesc.value      = ev.description ?? '';
   elColor.value     = ev.color ?? '#4f72ff';
+  //todo: add repeat value
 
   openModal();
 }
@@ -565,18 +568,17 @@ function closeModal() {
 
 function handleModalSave() {
   const title = elTitle.value.trim();
+
   if (!title) {
     elTitle.focus();
     elTitle.style.borderColor = 'var(--color-danger)';
-    // JS QUIRK — setTimeout:
-    // This schedules a function to run after 2000ms.
-    // It's non-blocking: execution continues immediately after this line.
     setTimeout(() => { elTitle.style.borderColor = ''; }, 2000);
     return;
   }
 
   const start = combineDateAndTime(elDate.value, elStartTime.value);
   const end   = combineDateAndTime(elDate.value, elEndTime.value);
+  const repeat = elRepeat.value || null;
 
   if (editingId) {
     // Update existing event: find it and replace its fields.
@@ -584,14 +586,13 @@ function handleModalSave() {
     // or -1 if not found.
     const idx = events.findIndex(ev => ev.id === editingId);
     if (idx !== -1) {
-      // Spread syntax: { ...events[idx], title, start, ... } creates a NEW
-      // object with all the old properties, then overwrites the ones we list.
-      // This is the idiomatic way to "update an object" in JS without
-      // mutating the original.
+      // Create a NEW object with old properties, then overwrite listed ones
+      // "Update an object" without mutating the original.
       events[idx] = { ...events[idx], title, start, end,
                       description: elDesc.value,
                       color: elColor.value };
     }
+    // todo: handle not found case
   } else {
     // New event
     events.push(createEvent({
@@ -600,6 +601,7 @@ function handleModalSave() {
       end,
       description: elDesc.value,
       color: elColor.value,
+      rrule: repeat  ? { freq: repeat, interval: 1 } : null,
     }));
   }
 

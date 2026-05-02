@@ -199,7 +199,7 @@ export function endOfDay(date) {
 export function startOfWeek(date) {
   // first week day (monday)
   const d = new Date(date);
-  const weekday = getFirstWeekday(d)
+  const weekday = getAdjWeekday(d)
   d.setDate(d.getDate() - weekday);
   d.setHours(0, 0, 0, 0);
   return d;
@@ -209,7 +209,7 @@ export function startOfWeek(date) {
  * Returns weekday index with Monday = 0 ... Sunday = 6
  * JS default is Sunday = 0 ... Saturday = 6.
  */
-export function getFirstWeekday(date) {
+export function getAdjWeekday(date) {
   // first week day (monday)
   return (date.getDay() + 6) % 7;
 }
@@ -374,12 +374,13 @@ function occursOnDay(ev, date) {
       return diffStart % interval === 0;
     
     case 'WEEKLY':
-      if (date.getDate() !== ev.start.getDay()) return false;
+      if (getAdjWeekday(date) !== getAdjWeekday(ev.start)) return false;
       return Math.floor(diffStart / 7) % interval === 0;
 
     case 'MONTHLY':
       if (date.getDate() !== ev.start.getDate()) return false;
-      return ((date.getMonth() - ev.start.getMonth()) + 12 * (date.getFullYear() - ev.start.getFullYear())) % interval === 0;
+      const months = ((date.getMonth() - ev.start.getMonth()) + 12 * (date.getFullYear() - ev.start.getFullYear()))
+      return months % interval === 0;
     
     case 'YEARLY': 
       return (
