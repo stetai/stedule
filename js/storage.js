@@ -172,7 +172,7 @@ function _openFirefox() {
     // 'cancel' fires when the user dismisses the picker without selecting.
     // Supported Firefox 113+, Chrome 113+.
     input.oncancel = () => {
-      reject(Object.assign(new DOMException('User cancelled'), { name: 'AbortError' }));
+      reject(new DOMException('User cancelled', 'AbortError'));
       input.remove();
     };
  
