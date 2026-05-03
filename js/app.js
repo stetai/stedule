@@ -340,8 +340,9 @@ function renderWeekView() {
       // Clamp to a minimum visual height so short events are still clickable
       const duration = Math.max(endH - startH, 0.25);
 
-      const width = 100 / item.cols;
-      const left  = width * item.col;
+      const baseWidth = 100 / item.cols;
+      const width = baseWidth * item.span;
+      const left  = baseWidth * item.col;
  
       const chip = document.createElement('div');
       chip.className = 'week-event';
@@ -710,39 +711,60 @@ function layoutDayEvents(events) {
 
   const sorted = [...events]
     .filter(ev => !ev.allDay)
-    .sort((a,b) => a.start - b.start);
+    .sort((a,b) =>
+      a.start - b.start || (b.end - b.start) - (a.end - a.start)
+    );
 
   const columns = [];
-  const result = [];
+  const positioned = [];
 
   for (const ev of sorted) {
 
-    let placed = false;
+    let colIndex = 0;
 
-    for (let i=0;i<columns.length;i++) {
+    while(true) {
 
-      const col = columns[i];
+      if(!columns[colIndex]) {
+        columns[colIndex] = [];
+      }
+
+      const col = columns[colIndex];
       const last = col[col.length-1];
 
-      if (last.end <= ev.start) {
+      if (!last || (last.end ?? last.start) <= ev.start) {
         col.push(ev);
-        result.push({event: ev, col: i});
-        placed = true;
+        positioned.push({event: ev, col: colIndex});
         break;
       }
+
+      colIndex++;
     }
 
-    if (!placed) {
-      columns.push([ev]);
-      result.push({event: ev, col: columns.length-1});
-    }
   }
 
   const colCount = columns.length;
 
-  return result.map(r => ({
-    event: r.event,
-    col: r.col,
-    cols: colCount
-  }));
+  return positioned.map(r => {
+
+    let span = 1;
+
+    for (let i = r.col + 1; i < colCount; i++) {
+
+      const conflict = columns[i].some(e =>
+        !( (e.end ?? e.start) <= r.event.start ||
+           e.start >= (r.event.end ?? r.event.start))
+      );
+
+      if (conflict) break;
+
+      span++;
+    }
+
+    return {
+      event: r.event,
+      col: r.col,
+      span,
+      cols: colCount
+    }
+  });
 }

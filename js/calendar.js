@@ -152,18 +152,29 @@ export function serializeICS(events) {
  * @returns {object[]}
  */
 export function eventsOnDay(events, date) {
+  const result = [];
   const dayStart = startOfDay(date);
   const dayEnd   = endOfDay(date);
 
-  return events.filter(ev => {
-    if (!ev.start) return false;
+  for (const ev of events) {
+
+    if (!ev.start) continue;
 
     if (!ev.rrule) {
-      return ev.start < dayEnd && (ev.end ?? ev.start) > dayStart;
+
+      if (ev.start < dayEnd && (ev.end ?? ev.start) > dayStart) {
+        result.push(ev);
+      }
+
+      continue;
     }
 
-    return recursOnDay(ev, date);
-  });
+    if (recursOnDay(ev, date)) {
+      result.push(materializeOccurrence(ev, date));
+    }
+  }
+
+  return result;
 }
 
 // ============================================================
@@ -286,4 +297,22 @@ function recursOnDay(ev, date) {
   }
 
   return false;
+}
+
+function materializeOccurrence(ev, date) {
+
+  const start = new Date(date);
+  start.setHours(ev.start.getHours(), ev.start.getMinutes(), 0, 0);
+
+  const duration =
+    (ev.end ?? ev.start) - ev.start;
+
+  const end = new Date(start.getTime() + duration);
+
+  return {
+    ...ev,
+    start,
+    end,
+    recurring: true
+  };
 }
