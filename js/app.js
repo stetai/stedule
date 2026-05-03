@@ -11,7 +11,7 @@ import {
 import {
   parseICS, serializeICS, createEvent,
   eventsOnDay, parseRRule, getAdjWeekday,
-  isToday, startOfWeek,
+  isToday, startOfWeek, addTime,
   toDateInputValue, toTimeInputValue, combineDateAndTime,
 } from './calendar.js';
 
@@ -389,8 +389,6 @@ function renderWeekView() {
       openNewEventModal(clickedDate);
     });
 
-    //todo: check why not working
-
     daysWrap.appendChild(col)
   }
 
@@ -463,8 +461,8 @@ function openNewEventModal(date) {
   // Pre-fill with the clicked date and a sensible default time
   elTitle.value      = '';
   elDate.value       = toDateInputValue(date);
-  elStartTime.value  = '09:00'; //todo: is this the spot?
-  elEndTime.value    = '10:00';
+  elStartTime.value  = toTimeInputValue(date); 
+  elEndTime.value    = toTimeInputValue(addTime(date,1.5));
   elDesc.value       = '';
   elColor.value      = '#Bf8888';
   elRepeat.value     = '';

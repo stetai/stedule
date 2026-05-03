@@ -261,6 +261,18 @@ export function combineDateAndTime(dateStr, timeStr) {
   return new Date(`${dateStr}T${timeStr}`);
 }
 
+/**
+ * Adds a time to a date.
+ * @param {Date} date 
+ * @param {float} hours
+ * @returns {Date}
+ */
+export function addTime(date, hours) {
+  const d = new Date(date);
+  d.setTime(d.getTime() + Math.floor(hours * 60 * 60 * 1000))
+  return d;
+}
+
 export function parseRRule(rruleStr) {
   return ICAL.Recur.fromString(rruleStr);
 }
