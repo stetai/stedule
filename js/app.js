@@ -45,6 +45,8 @@ const elDesc       = $('event-description');
 const elColor      = $('event-color');
 const elDeleteBtn  = $('modal-delete');
 
+const elRepeatIntervalGroup = $('repeat-interval-group');
+const elRepeatEndGroup = $('repeat-end-group');
 const elRepeatInterval = $('repeat-interval');
 const elRepeatEndType  = $('repeat-end-type');
 const elRepeatCount    = $('repeat-count');
@@ -487,11 +489,18 @@ function updateRepeatUI() {
   const freq = elRepeat.value;
 
   // hide everything by default
+  elRepeatIntervalGroup.style.display = 'none';
+  elRepeatEndGroup.style.display = 'none';
   elRepeatWeekdays.style.display = 'none';
   elRepeatCount.style.display = 'none';
   elRepeatUntil.style.display = 'none';
 
   if (!freq) return;
+
+  if (freq) {
+    elRepeatIntervalGroup.style.display = 'block';
+    elRepeatEndGroup.style.display = 'block';
+  }
 
   if (freq === "WEEKLY") {
     elRepeatWeekdays.style.display = 'flex';
@@ -664,6 +673,13 @@ function handleModalDelete() {
   renderCalendar();
   save();
 }
+
+
+elOverlay.addEventListener('hide.bs.modal', () => {
+  if (document.activeElement) {
+    document.activeElement.blur();
+  }
+});
 
 // ============================================================
 // STATUS BAR

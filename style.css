@@ -499,6 +499,8 @@ select:focus {
 }
 
 /* Recurrence UI elements hidden by default */
+#repeat-interval-group,
+#repeat-end-group,
 #repeat-weekdays,
 #repeat-count,
 #repeat-until {
