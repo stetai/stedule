@@ -517,9 +517,13 @@ function openEditEventModal(ev) {
   elDeleteBtn.style.display = '';
 
   elTitle.value     = ev.title;
-  elDate.value      = toDateInputValue(ev.start);
-  elStartTime.value = toTimeInputValue(ev.start);
-  elEndTime.value   = toTimeInputValue(ev.end ?? ev.start);
+  elDate.value      = toDateInputValue(ev.seriesStart ?? ev.start);
+  elStartTime.value = toTimeInputValue(ev.seriesStart ?? ev.start);
+  elEndTime.value   = toTimeInputValue(
+    ev.seriesStart ? 
+    new Date(ev.seriesStart.getTime() + (ev.end - ev.start)) :
+    (ev.end ?? ev.start)
+  );
   elDesc.value      = ev.description ?? '';
   elColor.value     = ev.color ?? '#bf8888';
 

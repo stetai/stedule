@@ -325,6 +325,7 @@ function materializeOccurrence(ev, date) {
     ...ev,
     start,
     end,
-    recurring: true
+    recurring: true,
+    seriesStart: ev.start
   };
 }
