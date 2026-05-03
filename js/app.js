@@ -674,13 +674,6 @@ function handleModalDelete() {
   save();
 }
 
-
-elOverlay.addEventListener('hide.bs.modal', () => {
-  if (document.activeElement) {
-    document.activeElement.blur();
-  }
-});
-
 // ============================================================
 // STATUS BAR
 // ============================================================
