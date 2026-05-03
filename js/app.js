@@ -576,6 +576,11 @@ function openModal() {
 }
 
 function closeModal() {
+
+  if (document.activeElement && elOverlay.contains(document.activeElement)) {
+    document.activeElement.blur();
+  }
+  
   elOverlay.classList.remove('open');
   elOverlay.setAttribute('aria-hidden', 'true');
   editingId = null;
