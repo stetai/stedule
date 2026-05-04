@@ -14,6 +14,15 @@
  * The rest of the app stays identical.
  */
 
+// Detect Tauri
+const isTauri = window.__TAURI__ !== undefined;
+
+let tauriFs;
+
+if (isTauri) {
+  tauriFs = await import('@tauri-apps/plugin-fs');
+}
+
 // Detect capability (Distinguish between Chromium, Firefox)
 const hasFileSystemAccess = 'showOpenFilePicker' in window;
 
@@ -31,6 +40,25 @@ let _fileName   = null; // Both: display name
  * @throws  {DOMException}   name === 'AbortError' if the user cancels.
  */
 export async function openFile() {
+
+  if (isTauri) {
+    const { open } = await import('@tauri-apps/plugin-dialog');
+
+    const path = await open({
+      filters: [{ name: 'Calendar', extensions: ['ics'] }],
+      multiple: false
+    });
+
+    if (!path) {
+      throw Object.assign(new DOMException('User cancelled'), { name: 'AbortError' });
+    }
+
+    _fileName = path.split('/').pop();
+    _fileHandle = path;
+
+    return await tauriFs.readTextFile(path);
+  }
+
   if (hasFileSystemAccess) {
     return _openChromium();
   } else {
@@ -67,6 +95,11 @@ export async function reloadFile() {
  */
 export async function writeFile(content) {
   if (!_fileName) throw new Error('No file is open. Call openFile() first.');
+
+  if (isTauri) {
+    await tauriFs.writeTextFile(_fileHandle, content);
+    return;
+  }
  
   if (hasFileSystemAccess) {
     return _writeChromium(content);
