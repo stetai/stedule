@@ -466,7 +466,7 @@ function openNewEventModal(date) {
   elStartTime.value  = toTimeInputValue(date); 
   elEndTime.value    = toTimeInputValue(addTime(date,1.5));
   elDesc.value       = '';
-  elColor.value      = '#Bf8888';
+  elColor.value      = '#A80808';
   elRepeat.value     = '';
   elRepeatInterval.value = 1;
   elRepeatEndType.value = '';
@@ -534,7 +534,7 @@ function openEditEventModal(ev) {
     (ev.end ?? ev.start)
   );
   elDesc.value      = ev.description ?? '';
-  elColor.value     = ev.color ?? '#bf8888';
+  elColor.value     = ev.color ?? '#A80808';
 
   if (ev.rrule) {
     const recur = parseRRule(ev.rrule);
@@ -577,7 +577,9 @@ function openModal() {
 
 function closeModal() {
 
-  if (document.activeElement && elOverlay.contains(document.activeElement)) {
+  if (document.activeElement && elOverlay.contains
+    // prevent aria-hidden warning in Chrome
+    (document.activeElement)) {
     document.activeElement.blur();
   }
   

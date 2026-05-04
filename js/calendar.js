@@ -20,11 +20,11 @@ if (!ICAL) {
  * @param {Date}   params.start
  * @param {Date}   params.end
  * @param {string} [params.description='']
- * @param {string} [params.color='#Bf8888']
+ * @param {string} [params.color='#A80808']
  * @param {boolean}[params.allDay=false]
  * @returns {object} event
  */
-export function createEvent({ title, start, end, description = '', color = '#Bf8888', allDay = false, rrule = null }) {
+export function createEvent({ title, start, end, description = '', color = '#A80808', allDay = false, rrule = null }) {
   return {
     id: crypto.randomUUID(),
     title,
@@ -66,7 +66,7 @@ export function parseICS(rawText) {
       start: ev.startDate?.toJSDate(),
       end: ev.endDate?.toJSDate(),
       description: ev.description ?? '',
-      color: v.getFirstPropertyValue('color') ?? '#Bf8888',
+      color: v.getFirstPropertyValue('color') ?? '#A80808',
       allDay: ev.startDate?.isDate ?? false,
       rrule: rruleProp ? rruleProp.toString() : null,
       exdates: exdateProps.map(p => p.getFirstValue().toJSDate())
