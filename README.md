@@ -19,6 +19,7 @@ On Firefox Browsers, a download will be triggered, allowing you to replace the o
 
 - `260424` Import Claude-generated scaffolding for the project
 - `260425` Add week view
+- `260503` Usable functionality
 
 ## Future features
 - [x] Week view
@@ -28,3 +29,13 @@ On Firefox Browsers, a download will be triggered, allowing you to replace the o
 - [ ] Reload button
 - [ ] Settings page
 - [ ] Drag to reschedule
+
+---
+
+<div style="text-align:center;">
+⢠⡶⠛⠛⠛⠛⣤  <br>
+⠻⣦⣴⣿⣤⣤⡀  <br>
+⣼⠃⠀⣿⠀⢀⡟  <br>
+⠉⠛⠛⣿⠛⠉⣠  <br>
+⠀⠀⠀⣿⠀⠀⢶  <br>
+</div>
