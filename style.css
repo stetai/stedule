@@ -760,6 +760,7 @@ select:focus {
   transition: opacity 0.1s, filter 0.1s;
   /* Subtle left border makes thin events identifiable */
   border-left: 3px solid rgba(0,0,0,0.15);
+  border-bottom: 2px solid rgba(0,0,0,0.15);
 }
  
 .week-event:hover {

@@ -361,7 +361,7 @@ function renderWeekView() {
  
       const timeEl = document.createElement('span');
       timeEl.className = 'week-event-time';
-      timeEl.textContent = `${formatTime(ev.start)} - ${formatTime(endDate)}`;
+      timeEl.textContent = `${formatTime(ev.start)} `;//- ${formatTime(endDate)}`;
  
       chip.appendChild(titleEl);
       chip.appendChild(timeEl);
