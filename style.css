@@ -217,8 +217,6 @@ body {
 
 /* ============================================================
    CALENDAR LAYOUT
-   The calendar-container fills the remaining viewport height
-   using flex-grow. This is the key to avoiding a scrolling page.
 ============================================================ */
 
 .calendar-container {
@@ -231,12 +229,12 @@ body {
 }
 
 /* ============================================================
-   WEEKDAY HEADERS (Sun, Mon, Tue, ...)
+   WEEKDAY HEADERS
 ============================================================ */
 
 .weekday-headers {
   display: grid;
-  grid-template-columns: repeat(7, 1fr); /* 7 equal columns */
+  grid-template-columns: repeat(7, 1fr); 
   gap: 2px;
   flex-shrink: 0;
 }
@@ -253,8 +251,6 @@ body {
 
 /* ============================================================
    MONTH GRID
-   CSS Grid is ideal here: 7 columns, as many rows as needed,
-   each cell the same size.
 ============================================================ */
 
 .calendar-grid {
@@ -660,9 +656,14 @@ select:focus {
   flex: 1;          /* grows to fill remaining height below the header */
   overflow-y: auto;
   overflow-x: hidden;
-  /* Custom scrollbar styling (Chromium only — Firefox ignores these) */
-  scrollbar-width: thin;
+
+  scrollbar-width: none; /*Firefox*/
+  -ms-overflow-style: none; /*IE, Edge*/
   scrollbar-color: var(--color-border) transparent;
+}
+
+.week-scroll::-webkit-scrollbar {
+  display: none; /*Chromium*/
 }
 
 /* The actual content row: gutter + 7 columns side by side */
