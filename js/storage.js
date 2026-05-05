@@ -38,27 +38,20 @@ let _fileName   = null; // Both: display name
  */
 export async function openFile() {
 
-  /*if (isTauri) {
-    if (!tauriFs) {
-      tauriFs = await import('@tauri-apps/plugin-fs');
-    }
+  if (isTauri) {
     
-    const { open } = await import('@tauri-apps/plugin-dialog');
+    const { invoke } = window.__TAURI__.core;
+    const result = await invoke("open_calendar");
 
-    const path = await open({
-      filters: [{ name: 'Calendar', extensions: ['ics'] }],
-      multiple: false
-    });
-
-    if (!path) {
+    if (!result) {
       throw Object.assign(new DOMException('User cancelled'), { name: 'AbortError' });
     }
 
-    _fileName = path.split('/').pop();
-    _fileHandle = path;
+    _fileName = result.name;
+    _fileHandle = result.path;
 
-    return await tauriFs.readTextFile(path);
-  }*/
+    return result.content;
+  }
 
   if (hasFileSystemAccess) {
     return _openChromium();
@@ -98,7 +91,11 @@ export async function writeFile(content) {
   if (!_fileName) throw new Error('No file is open. Call openFile() first.');
 
   if (isTauri) {
-    await tauriFs.writeTextFile(_fileHandle, content);
+    const { invoke } = window.__TAURI__.core;
+    await invoke("save_calendar", {
+      path: _fileHandle,
+      content
+    });
     return;
   }
  

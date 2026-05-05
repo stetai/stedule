@@ -113,7 +113,7 @@ async function handleOpenFile() {
     // cancels the picker. This is not a real error — don't show an alert.
     if (err.name === 'AbortError') return;
     console.error('Open failed:', err);
-    setStatus(`Error opening file: ${err.message}`, 'error');
+    setStatus(`Error opening file: ${err?.message ?? String(err)}`, 'error');
   }
 }
 
@@ -126,7 +126,7 @@ async function save() {
     setStatus(`Saved: ${getFileName()}`, 'saved');
   } catch (err) {
     console.error('Save failed:', err);
-    setStatus(`Save failed: ${err.message}`, 'error');
+    setStatus(`Save failed: ${err?.message ?? String(err)}`, 'error');
   }
 }
 
