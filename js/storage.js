@@ -145,7 +145,7 @@ export function canWriteInPlace() {
  * @returns {Promise<string>} The raw text content of the file.
  * @throws {DOMException} with name 'AbortError' if the user cancels.
  */
-export async function _openChromium() {
+async function _openChromium() {
   // showOpenFilePicker() is the browser dialog for picking a file.
   [_fileHandle] = await window.showOpenFilePicker({
     types: [{
@@ -165,7 +165,7 @@ export async function _openChromium() {
  * @param {string} content - The full text to write (replaces file contents).
  * @returns {Promise<void>}
  */
-export async function _writeChromium(content) {
+async function _writeChromium(content) {
   // Verify permission
   const permission = await _fileHandle.requestPermission({ mode: 'readwrite' });
   if (permission !== 'granted') {
@@ -193,7 +193,7 @@ function _openFirefox() {
       const file = input.files?.[0];
  
       if (!file) {
-        reject(Object.assign(new DOMException('User cancelled'), { name: 'AbortError' }));
+        reject(new DOMException('User cancelled', 'AbortError'));
         input.remove();
         return;
       }
@@ -206,7 +206,7 @@ function _openFirefox() {
     // 'cancel' fires when the user dismisses the picker without selecting.
     // Supported Firefox 113+, Chrome 113+.
     input.oncancel = () => {
-      reject(Object.assign(new DOMException('User cancelled'), { name: 'AbortError' }));
+      reject(new DOMException('User cancelled', 'AbortError'));
       input.remove();
     };
  

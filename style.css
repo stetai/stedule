@@ -222,8 +222,6 @@ body {
 
 /* ============================================================
    CALENDAR LAYOUT
-   The calendar-container fills the remaining viewport height
-   using flex-grow. This is the key to avoiding a scrolling page.
 ============================================================ */
 
 .calendar-container {
@@ -236,12 +234,12 @@ body {
 }
 
 /* ============================================================
-   WEEKDAY HEADERS (Sun, Mon, Tue, ...)
+   WEEKDAY HEADERS
 ============================================================ */
 
 .weekday-headers {
   display: grid;
-  grid-template-columns: repeat(7, 1fr); /* 7 equal columns */
+  grid-template-columns: repeat(7, 1fr); 
   gap: 2px;
   flex-shrink: 0;
 }
@@ -258,8 +256,6 @@ body {
 
 /* ============================================================
    MONTH GRID
-   CSS Grid is ideal here: 7 columns, as many rows as needed,
-   each cell the same size.
 ============================================================ */
 
 .calendar-grid {
@@ -449,6 +445,7 @@ label {
 input[type="text"],
 input[type="date"],
 input[type="time"],
+input[type="number"],
 textarea {
   width: 100%;
   padding: var(--space-sm) var(--space-sm);
@@ -482,6 +479,59 @@ input[type="color"] {
   border-radius: var(--radius-sm);
   cursor: pointer;
   background: var(--color-bg);
+}
+
+select {
+  width: 100%;
+  padding: var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  background: var(--color-bg);
+  color: var(--color-text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+  outline: none;
+  cursor: pointer;
+}
+
+select:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(79, 114, 255, 0.15);
+}
+
+/* Recurrence UI elements hidden by default */
+#repeat-interval-group,
+#repeat-end-group,
+#repeat-weekdays,
+#repeat-count,
+#repeat-until {
+  display: none;
+}
+
+.repeat-end-extra {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.weekday-picker {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.weekday-picker label {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.75rem;
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: pointer;
+}
+
+.weekday-picker input {
+  accent-color: var(--color-accent);
 }
 
 /* ============================================================
@@ -600,13 +650,26 @@ input[type="color"] {
   line-height: 1;
 }
 
+.week-day-header.today .wdh-num {
+  color: var(--color-today);
+}
+
+.week-day-header.today .wdh-name {
+  color: var(--color-today);
+}
+
 .week-scroll {
   flex: 1;          /* grows to fill remaining height below the header */
   overflow-y: auto;
   overflow-x: hidden;
-  /* Custom scrollbar styling (Chromium only — Firefox ignores these) */
-  scrollbar-width: thin;
+
+  scrollbar-width: none; /*Firefox*/
+  -ms-overflow-style: none; /*IE, Edge*/
   scrollbar-color: var(--color-border) transparent;
+}
+
+.week-scroll::-webkit-scrollbar {
+  display: none; /*Chromium*/
 }
 
 /* The actual content row: gutter + 7 columns side by side */
@@ -690,7 +753,6 @@ input[type="color"] {
   position: absolute;
   /* left/right leave a 2px gap from the column edges */
   left: 2px;
-  right: 2px;
   border-radius: var(--radius-sm);
   padding: 3px 5px;
   color: white;
@@ -705,6 +767,7 @@ input[type="color"] {
   transition: opacity 0.1s, filter 0.1s;
   /* Subtle left border makes thin events identifiable */
   border-left: 3px solid rgba(0,0,0,0.15);
+  border-bottom: 2px solid rgba(0,0,0,0.15);
 }
  
 .week-event:hover {
