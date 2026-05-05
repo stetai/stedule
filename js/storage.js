@@ -18,14 +18,10 @@
 const isTauri = '__TAURI__' in window;
 //const isTauri = window.__TAURI__ !== undefined;
 
-let tauriFs;
-
-if (isTauri) {
-  tauriFs = await import('@tauri-apps/plugin-fs');
-}
-
 // Detect capability (Distinguish between Chromium, Firefox)
 const hasFileSystemAccess = !isTauri && 'showOpenFilePicker' in window;
+
+let tauriFs = null;
 
 let _fileHandle = null; // Chromium: FileSystemFileHandle
 let _fileName   = null; // Both: display name
@@ -42,7 +38,11 @@ let _fileName   = null; // Both: display name
  */
 export async function openFile() {
 
-  if (isTauri) {
+  /*if (isTauri) {
+    if (!tauriFs) {
+      tauriFs = await import('@tauri-apps/plugin-fs');
+    }
+    
     const { open } = await import('@tauri-apps/plugin-dialog');
 
     const path = await open({
@@ -58,7 +58,7 @@ export async function openFile() {
     _fileHandle = path;
 
     return await tauriFs.readTextFile(path);
-  }
+  }*/
 
   if (hasFileSystemAccess) {
     return _openChromium();

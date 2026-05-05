@@ -269,6 +269,7 @@ body {
   grid-auto-rows: 1fr; /* all rows equal height, filling available space */
   gap: 2px;
   overflow: hidden;
+  /*outline: 3px solid red;*/
 }
 
 /* ============================================================
