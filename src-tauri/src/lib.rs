@@ -2,17 +2,16 @@
 
 use tauri::command;
 use tauri_plugin_dialog::DialogExt;
-use std::fs;
-use std::path::PathBuf;
 
-#[command]
+/*#[command]
 async fn open_calendar(app: tauri::AppHandle) -> Result<Option<serde_json::Value>, String> {
     let (tx, rx) = tokio::sync::oneshot::channel();
 
     app.dialog().file()
-        .add_filter("Calendar", &["ics"])
+        //.add_filter("Calendar", &["ics"]) //automatically returns null
         .pick_file(move |maybe_path| {
             // Harmless: receiver dropped.
+            println!("#####dialog returned: {:?}", maybe_path);
             let _ = tx.send(maybe_path);
         });
 
@@ -23,31 +22,39 @@ async fn open_calendar(app: tauri::AppHandle) -> Result<Option<serde_json::Value
         Some(p) => p,
     };
 
-    let path: PathBuf = match file_path {
-        tauri_plugin_dialog::FilePath::Path(p) => p,
-        tauri_plugin_dialog::FilePath::Url(u) => {
-            return Err(format!("Unsupported file URL: {}", u));
-        }
-    };
+    let path_str = file_path.to_string();
 
-    // to_string_lossy() gives the path string on both PathBuf (desktop) and content URI (Android).
-    let path_str = path.to_string_lossy().to_string();
-    let name = path.file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| "calendar.ics".to_string());
-    let content = fs::read_to_string(&path)
-        .map_err(|e| e.to_string())?;
+    let name = path_str
+        .split('/')
+        .last()
+        .unwrap_or("calendar.ics")
+        .to_string();
 
     Ok(Some(serde_json::json!({
         "path": path_str,
-        "name": name,
-        "content": content
+        "name": name
     })))
+}*/
+
+#[command]
+async fn open_calendar(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+
+    app.dialog()
+        .file()
+        //.add_filter("Calendar", &["ics"])
+        .pick_file(move |path| {
+            let _ = tx.send(path);
+        });
+
+    let maybe_path = rx.await.map_err(|e| e.to_string())?;
+
+    Ok(maybe_path.map(|p| p.to_string()))
 }
 
 #[command]
 fn save_calendar(path: String, content: String) -> Result<(), String> {
-    fs::write(&path, content).map_err(|e| e.to_string())
+    std::fs::write(path, content).map_err(|e| e.to_string())
 }
 
 

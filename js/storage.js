@@ -15,13 +15,12 @@
  */
 
 // Detect Tauri
-const isTauri = '__TAURI__' in window;
+const isTauri = !!window.__TAURI__?.core;
+//const isTauri = '__TAURI__' in window;
 //const isTauri = window.__TAURI__ !== undefined;
 
 // Detect capability (Distinguish between Chromium, Firefox)
 const hasFileSystemAccess = !isTauri && 'showOpenFilePicker' in window;
-
-let tauriFs = null;
 
 let _fileHandle = null; // Chromium: FileSystemFileHandle
 let _fileName   = null; // Both: display name
@@ -41,16 +40,19 @@ export async function openFile() {
   if (isTauri) {
     
     const { invoke } = window.__TAURI__.core;
-    const result = await invoke("open_calendar");
 
-    if (!result) {
-      throw Object.assign(new DOMException('User cancelled'), { name: 'AbortError' });
+    const path = await invoke("open_calendar");
+
+    if (!path) {
+      throw new DOMException('User cancelled', 'AbortError');
     }
 
-    _fileName = result.name;
-    _fileHandle = result.path;
+    const { readTextFile } = window.__TAURI__.fs;
 
-    return result.content;
+    _fileName = path.split("/").pop();
+    _fileHandle = path;
+
+    return await readTextFile(path);
   }
 
   if (hasFileSystemAccess) {

@@ -111,8 +111,9 @@ async function handleOpenFile() {
   } catch (err) {
     // The File System Access API throws an AbortError when the user
     // cancels the picker. This is not a real error — don't show an alert.
-    if (err.name === 'AbortError') return;
-    console.error('Open failed:', err);
+    /*if (err.name === 'AbortError') return;
+    console.error('Open failed:', err);*/
+    console.error("OPEN ERROR:", err);
     setStatus(`Error opening file: ${err?.message ?? String(err)}`, 'error');
   }
 }
