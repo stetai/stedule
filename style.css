@@ -115,6 +115,7 @@ body {
   justify-content: space-between;
   padding: 0 var(--space-lg);
   flex-shrink: 0; /* Prevents header from shrinking when content grows */
+  flex-wrap: wrap;
   gap: var(--space-md);
 }
 
@@ -123,6 +124,10 @@ body {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
+}
+
+.header-right {
+  flex-wrap: wrap;
 }
 
 .app-title {
