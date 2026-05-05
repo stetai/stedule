@@ -15,7 +15,8 @@
  */
 
 // Detect Tauri
-const isTauri = window.__TAURI__ !== undefined;
+const isTauri = '__TAURI__' in window;
+//const isTauri = window.__TAURI__ !== undefined;
 
 let tauriFs;
 
@@ -24,7 +25,7 @@ if (isTauri) {
 }
 
 // Detect capability (Distinguish between Chromium, Firefox)
-const hasFileSystemAccess = 'showOpenFilePicker' in window;
+const hasFileSystemAccess = !isTauri && 'showOpenFilePicker' in window;
 
 let _fileHandle = null; // Chromium: FileSystemFileHandle
 let _fileName   = null; // Both: display name

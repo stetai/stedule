@@ -98,7 +98,7 @@ body {
   color: var(--color-text);
   display: flex;
   flex-direction: column;
-  height: 100vh; /* vh = viewport height — 100vh means "full screen height" */
+  height: 100dvh; /* vh = viewport height — 100vh means "full screen height" */
   overflow: hidden;
 }
 
