@@ -231,7 +231,7 @@ function renderCalendar() {
   const weekdayHeaders = document.getElementById('weekday-headers');
   weekdayHeaders.style.display = currentView === 'month' ? '' : 'none';
 
-  elGrid.className = 'calendar-grid view-${currentView}';
+  elGrid.className = `calendar-grid view-${currentView}`;
 
   // Update the period label in the header
   if (currentView === 'month') {
