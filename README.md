@@ -17,18 +17,20 @@ On Firefox Browsers, a download will be triggered, allowing you to replace the o
 
 ## Changelog
 
-- `260424` Import Claude-generated scaffolding for the project
-- `260425` Add week view
-- `260503` Usable functionality
+- `260424, v0.0.1:` Import Claude-generated scaffolding for the project
+- `260425, v0.0.2:` Add week view
+- `260503, v0.0.3:` Usable functionality
+- `260505, v0.0.4:` Successful Tauri test on Android
+- `260506, v0.1.0:` First usable Android version
 
 ## Future features
 - [x] Week view
+- [x] Tauri packaging
+- [x] Recurring events
 - [ ] Dark mode
-- [ ] Tauri packaging
-- [ ] Recurring events
-- [ ] Reload button
 - [ ] Settings page
-- [ ] Drag to reschedule
+- [ ] Support for Linux
+- [ ] Support for Windows
 
 ---
 

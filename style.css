@@ -100,6 +100,8 @@ body {
   flex-direction: column;
   height: 100dvh; /* vh = viewport height — 100vh means "full screen height" */
   overflow: hidden;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 /* ============================================================
@@ -107,21 +109,23 @@ body {
 ============================================================ */
 
 .app-header {
-  height: var(--header-h);
+  min-height: var(--header-h);
+  padding: var(--space-md);
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  padding: 0 var(--space-lg);
+  padding-top: var(--space-lg);
   flex-shrink: 0; /* Prevents header from shrinking when content grows */
-  flex-wrap: wrap;
   gap: var(--space-md);
 }
 
 .header-left,
 .header-right {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-sm);
 }
@@ -283,7 +287,7 @@ body {
   flex-direction: column;
   gap: 2px;
   transition: background 0.1s;
-  min-height: 0; /* required for grid children to not overflow their row */
+  min-height: 60px; /* required for grid children to not overflow their row */
 }
 
 .day-cell:hover {
@@ -364,6 +368,7 @@ body {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   width: min(480px, 90vw); /* min() = never wider than 90% of viewport */
+  max-height: 90dvh;
   display: flex;
   flex-direction: column;
   transform: translateY(8px);
@@ -397,6 +402,7 @@ body {
   padding: var(--space-lg);
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
   gap: var(--space-md);
 }
 
@@ -660,6 +666,7 @@ select:focus {
 
 .week-scroll {
   flex: 1;          /* grows to fill remaining height below the header */
+  min-height:0;
   overflow-y: auto;
   overflow-x: hidden;
 
