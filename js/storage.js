@@ -93,11 +93,13 @@ export async function writeFile(content) {
   if (!_fileName) throw new Error('No file is open. Call openFile() first.');
 
   if (isTauri) {
-    const { invoke } = window.__TAURI__.core;
-    await invoke("save_calendar", {
-      path: _fileHandle,
-      content
-    });
+    const { writeTextFile } = window.__TAURI__.fs;
+
+    if(!_fileHandle) {
+      throw new Error("No file handle availabe");
+    }
+
+    await writeTextFile(_fileHandle, content);
     return;
   }
  
