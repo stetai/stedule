@@ -49,7 +49,7 @@ export async function openFile() {
 
     const { readTextFile } = window.__TAURI__.fs;
 
-    _fileName = path.split("/").pop();
+    _fileName = path.split("%2F").pop();
     _fileHandle = path;
 
     return await readTextFile(path);
