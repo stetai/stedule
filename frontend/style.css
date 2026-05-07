@@ -472,7 +472,10 @@ textarea:focus {
 }
 
 textarea {
-  resize: vertical; /* user can resize vertically but not horizontally */
+  display: flex;
+  flex-wrap: wrap;
+  min-height: 100px;
+  resize: none;
 }
 
 input[type="color"] {
