@@ -625,7 +625,7 @@ select:focus {
 
 /* Blank spacer for alignment of date headers with day columns*/
 .week-gutter-spacer { 
-  width: var(--week-gutter-w, 52px);
+  width: var(--week-gutter-w, 54px);
   flex-shrink: 0;
   border-right: 1px solid var(--color-border);
 }
@@ -683,7 +683,7 @@ select:focus {
   display: none; /*Chromium*/
 }
 
-/* The actual content row: gutter + 7 columns side by side */
+/* The actual content row: gutter + ${_weekDayNum} columns side by side */
 .week-body {
   display: flex;
   /* Height = 24 hours × HOUR_H. Defined in CSS so the browser knows
@@ -697,7 +697,7 @@ select:focus {
 /* -- Time gutter ----------------------------------------------------- */
 
 .week-time-gutter {
-  width: var(--week-gutter-w, 52px);
+  width: var(--week-gutter-w, 54px);
   flex-shrink: 0;
   border-right: 1px solid var(--color-border);
   position: relative;
@@ -762,10 +762,10 @@ select:focus {
 
 .week-event {
   position: absolute;
-  /* left/right leave a 2px gap from the column edges */
-  left: 2px;
+  /* left/right leave a 1px gap from the column edges */
+  left: 1px;
   border-radius: var(--radius-sm);
-  padding: 3px 5px;
+  padding: 1px 1px;
   color: white;
   cursor: pointer;
   overflow: hidden;
@@ -777,7 +777,7 @@ select:focus {
   gap: 1px;
   transition: opacity 0.1s, filter 0.1s;
   /* Subtle left border makes thin events identifiable */
-  border-left: 3px solid rgba(0,0,0,0.15);
+  border-left: 2px solid rgba(0,0,0,0.15);
   border-bottom: 2px solid rgba(0,0,0,0.15);
 }
  
@@ -787,12 +787,17 @@ select:focus {
 }
  
 .week-event-title {
-  font-size: 0.73rem;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 1.2;
+  font-size: 0.70rem;
+  font-weight: 550;
+  /*white-space: nowrap;
+  text-overflow: ellipsis;*/
+  overflow: hidden;/*hidden*/
+  line-height: 1.0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  word-break: break-word;
 }
  
 .week-event-time {

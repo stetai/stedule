@@ -24,6 +24,10 @@ let currentDate = new Date();   // The date the calendar is currently showing
 let currentView = 'week';      // 'month' | 'week' | 'day' (week/day = future work)
 let editingId   = null;         // ID of the event currently in the modal, or null
 
+let _weekDayNum = 7;
+let _firstWeekday = "Mon";
+let _seqcDayNum = 1;
+
 // ============================================================
 // DOM REFERENCES
 // ============================================================
@@ -93,7 +97,7 @@ function init() {
   elRepeatEndType.addEventListener('change', updateRepeatUI);
 
   renderCalendar();
-  renderWeekdayHeader("Mon");
+  renderWeekdayHeader(_firstWeekday);
   setStatus('No file open. Click "Open .ics file" to begin.');
 }
 
@@ -138,7 +142,7 @@ function navigate(direction) {
   if (currentView === 'month') {
     currentDate.setMonth(currentDate.getMonth() + direction);
   } else if (currentView === 'week') {
-    currentDate.setDate(currentDate.getDate() + 7 * direction);
+    currentDate.setDate(currentDate.getDate() + 7 * direction); // 7 stays here
   } else if (currentView === 'day') {
     currentDate.setDate(currentDate.getDate() + direction);
   }
@@ -192,7 +196,7 @@ function renderCalendar() {
   }
 }
 
-function  renderWeekdayHeader(startDay = "Mon") {
+function  renderWeekdayHeader(startDay = "Mon") { //todo: make flexible
   let days;
   if (startDay === "Mon") {
     days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
@@ -235,9 +239,7 @@ function renderMonthView() {
   }
 }
 
-// --- Week view (scaffold — expand for full implementation) ---
-
-// If you change HOUR_H, update BOTH the constant here AND --hour-h in CSS.
+// --- Week view ---
 
 const HOUR_H = 32; // pixels per hour. Must match --hour-h in style.css
 
@@ -260,7 +262,7 @@ function renderWeekView() {
   gutterSpacer.className = 'week-gutter-spacer';
   headerRow.appendChild(gutterSpacer);
 
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < _weekDayNum; i++) {
     const day = new Date(monday);
     day.setDate(day.getDate() + i);
 
@@ -314,8 +316,7 @@ function renderWeekView() {
     const col = document.createElement('div');
     col.className = 'week-day-col' + (isToday(day) ? ' today' : '');
  
-    // ── Hour grid lines ──────────────────────────────────────────
-    // Purely visual.
+    // -- Hour grid lines (Purely visual) --------------------------------
     for (let h = 0; h < 24; h++) {
       const row = document.createElement('div');
       row.className = 'week-hour-row';
@@ -326,7 +327,7 @@ function renderWeekView() {
       col.appendChild(row);
     }
     
-    // ── Positioned events ────────────────────────────────────────
+    // -- Positioned events ----------------------------------------------
     // For each event, calculate top and height in pixels from the
     // fractional hour values of start/end time.
     const laidOut = layoutDayEvents(dayEvents);
@@ -350,8 +351,8 @@ function renderWeekView() {
       chip.className = 'week-event';
       chip.style.top        = `${startH * HOUR_H}px`;
       chip.style.height     = `${duration * HOUR_H}px`;
-      chip.style.left       = `calc(${left}% + 2px)`;
-      chip.style.width      = `calc(${width}% - 4px)`;
+      chip.style.left       = `calc(${left}% + 1px)`;
+      chip.style.width      = `calc(${width}% - 2px)`;
       chip.style.background = ev.color;
  
       // Show title + time if there is enough vertical space
@@ -361,7 +362,9 @@ function renderWeekView() {
  
       const timeEl = document.createElement('span');
       timeEl.className = 'week-event-time';
-      timeEl.textContent = `${formatTime(ev.start)} `;//- ${formatTime(endDate)}`;
+      if(duration * HOUR_H > 32 /*&& there are no collisions*/){
+        timeEl.textContent = `${formatTime(ev.start)}`;//- ${formatTime(endDate)}`;
+      }
  
       chip.appendChild(titleEl);
       chip.appendChild(timeEl);
