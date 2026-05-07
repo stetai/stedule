@@ -445,7 +445,7 @@ function renderWeekView() {
       const clickedDate = new Date(day);
       clickedDate.setHours(Math.floor(totalMins / 60), totalMins % 60, 0, 0);
 
-      if (clickedDate.getTime < draftEvent?.start) 
+      if (draftEvent && clickedDate.getTime() < draftEvent.start.getTime()) 
         // An event is being resized and we stop above the event
         // The minimum size should be used.
         return;
@@ -550,7 +550,6 @@ function startQuickAdd(col, startDate) {
 
     e.stopPropagation();
     e.preventDefault();
-    e.preventScroll();
 
     resizing = true;
     startY = e.clientY;
@@ -584,6 +583,8 @@ function startQuickAdd(col, startDate) {
 function onResize(e) {
   if (!resizing) return;
 
+  document.body.style.overflow = "hidden";
+
   const dy = e.clientY - startY;
   let newHeight = startHeight + dy;
 
@@ -606,6 +607,8 @@ function onResize(e) {
 function stopResize() {
 
   resizing = false;
+
+  document.body.style.overflow = "";
 
   document.removeEventListener('pointermove', onResize);
   document.removeEventListener('pointerup', stopResize);

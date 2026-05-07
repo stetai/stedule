@@ -901,6 +901,7 @@ select:focus {
   right: 0;
   height: 24px; /*big target to hit for the user's huge finger*/
   cursor: ns-resize;
+  touch-action: none;
 }
 
 /* Make text unselectable */
