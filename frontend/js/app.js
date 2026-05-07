@@ -23,12 +23,18 @@ let events         = [];          // All parsed event objects
 let currentDate    = new Date();  // The date the calendar is currently showing
 let currentView    = 'week';      // 'month' | 'week' | 'day' (week/day = future work)
 let editingId      = null;        // ID of the event currently in the modal, or null
+
+// event draft
 let draftEvent     = null;        // Event that is being worked on in quickadd
 let draftOutlineEl = null;        // Outline of quickadd
-let resizing       = false;       // Currently resizing?
+let moving         = false;       // Currently moving event draft?
+let startTop       = 0;
+let draftColumn    = null;        // Column of event draft
+let resizing       = false;       // Currently resizing event draft?
 let startY         = 0;           //|Default values for quickadd outline
 let startHeight    = 0;           //|
 
+//future dynamic access
 let _weekDayNum = 7;
 let _firstWeekday = 0; //0 = "Mon", 1 = "Tue", etc
 let _seqcDayNum = 1;
@@ -97,7 +103,8 @@ function init() {
 
   $('quick-add-open').addEventListener('click', (e) => {
     if (e.target.closest('.week-event-resize')) return;
-    openNewEventModal(draftEvent.start);
+    
+    openNewEventModal(draftEvent.start, draftEvent.title);
 
     closeQuickAdd();
   });
@@ -445,7 +452,7 @@ function renderWeekView() {
       const clickedDate = new Date(day);
       clickedDate.setHours(Math.floor(totalMins / 60), totalMins % 60, 0, 0);
 
-      if (draftEvent && clickedDate.getTime() < draftEvent.start.getTime()) 
+      if (resizing && clickedDate.getTime() < draftEvent.start.getTime()) 
         // An event is being resized and we stop above the event
         // The minimum size should be used.
         return;
@@ -539,6 +546,21 @@ function startQuickAdd(col, startDate) {
   const outline = document.createElement('div');
   outline.className = 'week-event-outline';
 
+  outline.addEventListener('pointerdown', (e) => {
+    // Ignore the resize handle
+    if (e.target.closest('.week-event-resize')) return;
+
+    e.stopPropagation();
+    e.preventDefault();
+
+    moving = true;
+    startY = e.clientY;
+    startTop = outline.offsetTop;
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', stopMove);
+  });
+
   outline.style.top = `${startH * HOUR_H}px`;
   outline.style.height = `${durationHours * HOUR_H}px`;
 
@@ -564,10 +586,14 @@ function startQuickAdd(col, startDate) {
   col.appendChild(outline);
 
   draftOutlineEl = outline;
+  draftColumn = col;
+
+  const title = elQuickTitle.value.trim();
 
   const end = new Date(startDate.getTime() + durationHours * 3600000);
 
   draftEvent = {
+    title: title, 
     start: startDate,
     end
   };
@@ -578,6 +604,73 @@ function startQuickAdd(col, startDate) {
 
   elQuickTitle.value = '';
   elQuickTitle.focus({ preventScroll: true });
+}
+
+function onMove(e) {
+  if (!moving) return;
+
+  document.body.style.overflow = "hidden";
+
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const newCol = el?.closest('.week-day-col');
+
+  if (newCol && newCol !== draftColumn) {
+
+    draftColumn = newCol;
+    newCol.appendChild(draftOutlineEl);
+
+    // update date
+    const monday = startOfWeek(currentDate);
+    const index = [...newCol.parentNode.children].indexOf(newCol);
+
+    const newDate = new Date(monday);
+    newDate.setDate(monday.getDate() + index);
+
+    const hours = draftEvent.start.getHours();
+    const minutes = draftEvent.start.getMinutes();
+
+    newDate.setHours(hours, minutes, 0, 0);
+
+    const duration = draftEvent.end - draftEvent.start;
+
+    draftEvent.start = newDate;
+    draftEvent.end = new Date(newDate.getTime() + duration);
+
+    updateQuickBar();
+  }
+
+  const dy = e.clientY - startY;
+
+  let newTop = startTop + dy;
+
+  const snap = HOUR_H / 4; // 15 minutes
+  newTop = Math.round(newTop / snap) * snap;
+
+  newTop = Math.max(0, newTop);
+
+  draftOutlineEl.style.top = `${newTop}px`;
+
+  const startHours = newTop / HOUR_H;
+
+  const start = new Date(draftEvent.start);
+  start.setHours(Math.floor(startHours), (startHours % 1) * 60, 0, 0);
+
+  const duration = draftEvent.end - draftEvent.start;
+
+  draftEvent.start = start;
+  draftEvent.end = new Date(start.getTime() + duration);
+
+  updateQuickBar();
+}
+
+function stopMove() {
+
+  moving = false;
+
+  document.body.style.overflow = "";
+
+  document.removeEventListener('pointermove', onMove);
+  document.removeEventListener('pointerup', stopMove);
 }
 
 function onResize(e) {
@@ -637,13 +730,13 @@ function closeQuickAdd() {
 // MODAL
 // ============================================================
 
-function openNewEventModal(date) {
+function openNewEventModal(date, title='') {
   editingId = null;
   elModalTitle.textContent = 'New Event';
   elDeleteBtn.style.display = 'none';
 
   // Pre-fill with the clicked date and a sensible default time
-  elTitle.value      = '';
+  elTitle.value      = title;
   elDate.value       = toDateInputValue(date);
   elStartTime.value  = toTimeInputValue(date); 
   elEndTime.value    = toTimeInputValue(addTime(date,1.5));
