@@ -259,12 +259,15 @@ function renderWeekView() {
   headerRow.className = 'week-header-row';
 
   const gutterSpacer = document.createElement('div');
+  const bubble = document.createElement('div');
   const wn = document.createElement('span');
   const weekNumber = getWeekNumber(monday); // get week number
   wn.className = 'wdh-name';
   wn.textContent = weekNumber;
+  bubble.className = 'bubble';
+  bubble.appendChild(wn);
   gutterSpacer.className = 'week-gutter-spacer';
-  gutterSpacer.appendChild(wn);
+  gutterSpacer.appendChild(bubble);
 
   headerRow.appendChild(gutterSpacer);
 
