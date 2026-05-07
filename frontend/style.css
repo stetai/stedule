@@ -620,12 +620,13 @@ select:focus {
   display: flex;
   flex-shrink: 0;
   border-bottom: 2px solid var(--color-border);
+  padding-right: 1px;
   background: var(--color-surface);
 }
 
 /* Blank spacer for alignment of date headers with day columns*/
 .week-gutter-spacer { 
-  width: var(--week-gutter-w, 54px);
+  width: var(--week-gutter-w, 19.0px);
   flex-shrink: 0;
   border-right: 1px solid var(--color-border);
 }
@@ -697,7 +698,7 @@ select:focus {
 /* -- Time gutter ----------------------------------------------------- */
 
 .week-time-gutter {
-  width: var(--week-gutter-w, 54px);
+  width: var(--week-gutter-w, 20px);
   flex-shrink: 0;
   border-right: 1px solid var(--color-border);
   position: relative;
