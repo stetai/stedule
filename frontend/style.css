@@ -891,8 +891,16 @@ select:focus {
   right: 1px;
   border: 2px solid var(--color-accent);
   border-radius: var(--radius-sm);
-  pointer-events: none; /* prevent pointer events for dragging */
   z-index: 2;
+}
+
+.week-event-resize {
+  position: absolute;
+  bottom: -3px;
+  left: 0;
+  right: 0;
+  height: 24px; /*big target to hit for the user's huge finger*/
+  cursor: ns-resize;
 }
 
 /* Make text unselectable */

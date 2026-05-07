@@ -19,12 +19,15 @@ import {
 // APPLICATION STATE
 // ============================================================
 
-let events         = [];           // All parsed event objects
-let currentDate    = new Date();   // The date the calendar is currently showing
-let currentView    = 'week';       // 'month' | 'week' | 'day' (week/day = future work)
-let editingId      = null;         // ID of the event currently in the modal, or null
-let draftEvent     = null;         //
-let draftOutlineEl = null;         //
+let events         = [];          // All parsed event objects
+let currentDate    = new Date();  // The date the calendar is currently showing
+let currentView    = 'week';      // 'month' | 'week' | 'day' (week/day = future work)
+let editingId      = null;        // ID of the event currently in the modal, or null
+let draftEvent     = null;        // Event that is being worked on in quickadd
+let draftOutlineEl = null;        // Outline of quickadd
+let resizing       = false;       // Currently resizing?
+let startY         = 0;           //|Default values for quickadd outline
+let startHeight    = 0;           //|
 
 let _weekDayNum = 7;
 let _firstWeekday = 0; //0 = "Mon", 1 = "Tue", etc
@@ -87,10 +90,15 @@ function init() {
   document.addEventListener('click', (e) => {
     if (e.target.closest('.week-day-col')) return;
     if (e.target.closest('.quick-add-bar')) return;
+    if (e.target.closest('.week-event-outline')) return;
+
     closeQuickAdd();
   });
-  $('quick-add-open').addEventListener('click', () => {
+
+  $('quick-add-open').addEventListener('click', (e) => {
+    if (e.target.closest('.week-event-resize')) return;
     openNewEventModal(draftEvent.start);
+
     closeQuickAdd();
   });
   //$('quick-add-save').addEventListener('click', handleModalSave);
@@ -426,6 +434,8 @@ function renderWeekView() {
     col.addEventListener('click', (e) => {
       // Ignore clicks that landed on an event chip
       if (e.target.closest('.week-event')) return;
+      // Ignore during resizing
+      if (e.target.closest('.week-event-outline')) return;
  
       const scrollRect = scroll.getBoundingClientRect();
       const yInContent = (e.clientY - scrollRect.top) + scroll.scrollTop;
@@ -434,6 +444,12 @@ function renderWeekView() {
       const totalMins   = Math.round((yInContent / HOUR_H) * 60 / 15) * 15;
       const clickedDate = new Date(day);
       clickedDate.setHours(Math.floor(totalMins / 60), totalMins % 60, 0, 0);
+
+      if (clickedDate.getTime < draftEvent?.start) 
+        // An event is being resized and we stop above the event
+        // The minimum size should be used.
+        return;
+
       startQuickAdd(col, clickedDate);
     });
 
@@ -526,6 +542,26 @@ function startQuickAdd(col, startDate) {
   outline.style.top = `${startH * HOUR_H}px`;
   outline.style.height = `${durationHours * HOUR_H}px`;
 
+  // handle logic
+  const handle = document.createElement('div');
+  handle.className = 'week-event-resize';
+
+  handle.addEventListener('pointerdown', (e) => {
+
+    e.stopPropagation();
+    e.preventDefault();
+    e.preventScroll();
+
+    resizing = true;
+    startY = e.clientY;
+    startHeight = outline.offsetHeight;
+
+    document.addEventListener('pointermove', onResize);
+    document.addEventListener('pointerup', stopResize);
+  });
+
+  outline.appendChild(handle);
+
   col.appendChild(outline);
 
   draftOutlineEl = outline;
@@ -543,6 +579,36 @@ function startQuickAdd(col, startDate) {
 
   elQuickTitle.value = '';
   elQuickTitle.focus({ preventScroll: true });
+}
+
+function onResize(e) {
+  if (!resizing) return;
+
+  const dy = e.clientY - startY;
+  let newHeight = startHeight + dy;
+
+  const snap = HOUR_H / 4; // 15 minutes
+  newHeight = Math.round(newHeight / snap) * snap;
+
+  const minHeight = snap;
+  newHeight = Math.max(newHeight, minHeight);
+
+  draftOutlineEl.style.height = `${newHeight}px`;
+
+  const durationHours = newHeight / HOUR_H;
+  draftEvent.end = new Date(
+    draftEvent.start.getTime() + durationHours * 3600000
+  );
+
+  updateQuickBar();
+}
+
+function stopResize() {
+
+  resizing = false;
+
+  document.removeEventListener('pointermove', onResize);
+  document.removeEventListener('pointerup', stopResize);
 }
 
 function updateQuickBar() {
