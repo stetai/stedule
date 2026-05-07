@@ -1,38 +1,11 @@
 /*
   ============================================================
-  DESIGN DECISIONS
+  CSS CUSTOM PROPERTIES (variables) 
   ============================================================
-
-  Color: Warm off-white base (#f7f5f2) with deep slate text.
-  This avoids the clinical feel of pure white, which tires eyes
-  over long sessions.
-
-  Accent: Indigo (#4f72ff) for primary actions and events.
-  Today highlight: Warm amber (#f5a623) so the current day
-  stands out immediately without shouting.
-
-  Typography: Bricolage Grotesque for chrome (headers, labels)
-  — it has a slightly mechanical character that suits a calendar.
-  DM Mono for date numbers — monospaced width prevents grid
-  cells from shifting when switching between "1" and "31".
-
-  Layout: CSS Grid throughout. The calendar grid is a 7-column
-  grid. This is the most natural mapping: one column per day.
-
-  ============================================================
-  CSS CUSTOM PROPERTIES (variables) — the first thing to learn
-  ============================================================
-  Define all colours, sizes, and repeated values here at the top.
-  Reference them as var(--name) everywhere else.
-
-  WHY: If you hardcode #4f72ff in 40 places and want to change
-  it, you'd edit 40 lines. With a variable, you edit one line.
-  This is also how theming (light/dark mode) works — you just
-  redefine the variables inside a [data-theme="dark"] selector.
 */
 
 :root {
-  /* Colours */
+  /* //Bright Colours *
   --color-bg:          #f7f5f2;
   --color-surface:     #ffffff;
   --color-border:      #e4e0db;
@@ -42,7 +15,27 @@
   --color-accent-soft: #eef1ff;
   --color-today:       #f5a623;
   --color-today-bg:    #fff8ed;
-  --color-danger:      #e53935;
+  --color-danger:      #e53935;*/
+
+  --color-bg:          #1a1614;   /* warm charcoal background */
+  --color-surface:     #241f1c;   /* cards, header, modal surfaces */
+  --color-border:      #3a322d;   /* subtle warm borders */
+  --color-text:        #f2ece8;   /* slightly warm white */
+  --color-text-muted:  #a79b94;   /* desaturated warm grey */
+  --color-accent:      #b82a1a;   /* primary action red */
+  --color-accent-hover:#df4a39;
+  --color-accent-soft: linear-gradient(
+                         180deg,
+                         rgba(217,74,58,0.18),
+                         rgba(217,74,58,0.08)
+                       );
+  --color-today:       #ff8a65;   /* warm coral highlight */
+  --color-today-bg:    linear-gradient(
+                         180deg,
+                         rgba(255,138,101,0.18),
+                         rgba(255,138,101,0.06)
+                       );
+  --color-danger:      #ff6b6b;   /* clearer red for destructive actions */
 
   /* Spacing — using a consistent scale prevents visual chaos */
   --space-xs:  4px;
@@ -62,10 +55,15 @@
   --header-h:   60px;
   --status-h:   28px;
 
-  /* Shadows */
+  /* Shadows light mode*
   --shadow-sm: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
   --shadow-md: 0 4px 12px rgba(0,0,0,.10), 0 2px 4px rgba(0,0,0,.06);
-  --shadow-lg: 0 12px 40px rgba(0,0,0,.14), 0 4px 8px rgba(0,0,0,.06);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,.14), 0 4px 8px rgba(0,0,0,.06);*/
+
+  /* Shadows dark mode */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.6);
+  --shadow-md: 0 6px 16px rgba(0,0,0,.55);
+  --shadow-lg: 0 18px 48px rgba(0,0,0,.65);
 }
 
 /* ============================================================
@@ -185,7 +183,7 @@ body {
   color: #fff;
   border-color: var(--color-accent);
 }
-.btn-primary:hover { background: #3d5ce8; border-color: #3d5ce8; }
+.btn-primary:hover { background: var(--color-accent-hover); border-color: var(--color-accent-hover); }
 
 .btn-ghost {
   background: transparent;
@@ -559,7 +557,10 @@ select:focus {
 
 .status-bar.saving { color: var(--color-accent); }
 .status-bar.saved  { color: #2e7d32; }
-.status-bar.error  { color: var(--color-danger); }
+.status-bar.error  { 
+  color: var(--color-text); 
+  background-color: var(--color-danger)
+}
 
 /* ============================================================
    NO-FILE EMPTY STATE
