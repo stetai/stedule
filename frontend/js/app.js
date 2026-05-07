@@ -19,10 +19,12 @@ import {
 // APPLICATION STATE
 // ============================================================
 
-let events      = [];           // All parsed event objects
-let currentDate = new Date();   // The date the calendar is currently showing
-let currentView = 'week';      // 'month' | 'week' | 'day' (week/day = future work)
-let editingId   = null;         // ID of the event currently in the modal, or null
+let events         = [];           // All parsed event objects
+let currentDate    = new Date();   // The date the calendar is currently showing
+let currentView    = 'week';       // 'month' | 'week' | 'day' (week/day = future work)
+let editingId      = null;         // ID of the event currently in the modal, or null
+let draftEvent     = null;         //
+let draftOutlineEl = null;         //
 
 let _weekDayNum = 7;
 let _firstWeekday = 0; //0 = "Mon", 1 = "Tue", etc
@@ -57,6 +59,12 @@ const elRepeatCount    = $('repeat-count');
 const elRepeatUntil    = $('repeat-until');
 const elRepeatWeekdays = $('repeat-weekdays');
 
+const elQuickBar   = $('quick-add-bar');
+const elQuickTitle = $('quick-add-title');
+const elQuickTime  = $('quick-add-time');
+const elQuickOpen  = $('quick-add-open');
+const elQuickSave  = $('quick-add-save');
+
 // ============================================================
 // INITIALIZATION
 // ============================================================
@@ -75,6 +83,31 @@ function init() {
     if (!btn) return; // clicked the container, not a button
     switchView(btn.dataset.view);
   });
+
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.week-day-col')) return;
+    if (e.target.closest('.quick-add-bar')) return;
+    closeQuickAdd();
+  });
+  $('quick-add-open').addEventListener('click', () => {
+    openNewEventModal(draftEvent.start);
+    closeQuickAdd();
+  });
+  //$('quick-add-save').addEventListener('click', handleModalSave);
+
+  // move quick add along with keyboard
+  if (window.visualViewport) {
+    const updateQuickBarOffset = () => {
+      const vv = window.visualViewport;
+      const offset = window.innerHeight - (vv.height + vv.offsetTop);
+      elQuickBar.style.bottom = `${Math.max(offset, 0)}px`;
+    };
+
+    window.visualViewport.addEventListener('resize', updateQuickBarOffset);
+    window.visualViewport.addEventListener('scroll', updateQuickBarOffset);
+
+    updateQuickBarOffset();
+  }
 
   // Modal buttons
   $('modal-cancel').addEventListener('click', closeModal);
@@ -401,7 +434,7 @@ function renderWeekView() {
       const totalMins   = Math.round((yInContent / HOUR_H) * 60 / 15) * 15;
       const clickedDate = new Date(day);
       clickedDate.setHours(Math.floor(totalMins / 60), totalMins % 60, 0, 0);
-      openNewEventModal(clickedDate);
+      startQuickAdd(col, clickedDate);
     });
 
     daysWrap.appendChild(col)
@@ -471,6 +504,64 @@ function createEventChip(ev) {
   });
 
   return chip;
+}
+
+// --------------------------------------------------------
+// quick add
+// --------------------------------------------------------
+
+function startQuickAdd(col, startDate) {
+
+  const durationHours = 1.5;
+
+  if (draftOutlineEl) {
+    draftOutlineEl.remove();
+  }
+
+  const startH = startDate.getHours() + startDate.getMinutes() / 60;
+
+  const outline = document.createElement('div');
+  outline.className = 'week-event-outline';
+
+  outline.style.top = `${startH * HOUR_H}px`;
+  outline.style.height = `${durationHours * HOUR_H}px`;
+
+  col.appendChild(outline);
+
+  draftOutlineEl = outline;
+
+  const end = new Date(startDate.getTime() + durationHours * 3600000);
+
+  draftEvent = {
+    start: startDate,
+    end
+  };
+
+  updateQuickBar();
+
+  elQuickBar.classList.add('open');
+
+  elQuickTitle.value = '';
+  elQuickTitle.focus({ preventScroll: true });
+}
+
+function updateQuickBar() {
+  if (!draftEvent) return;
+
+  elQuickTime.textContent =
+    //em-dash for correct formating of start/end time
+    `${formatDate(draftEvent.start)}: ${formatTime(draftEvent.start)} – ${formatTime(draftEvent.end)}`;
+}
+
+function closeQuickAdd() {
+  draftEvent = null;
+
+  if (draftOutlineEl) {
+    draftOutlineEl.remove();
+    draftOutlineEl = null;
+  }
+
+  elQuickBar.classList.remove('open');
 }
 
 // ============================================================
@@ -746,6 +837,12 @@ function formatTime(date) {
   if (!date) return '';
   return date.toLocaleTimeString('default', { hour: 'numeric', minute: '2-digit' });
 }
+
+function formatDate(date) {
+  if (!date) return '';
+  return date.toLocaleDateString('default', {
+      weekday: 'short', year: 'numeric', month: 'long', day: 'numeric',
+    });}
 
 function layoutDayEvents(events) {
 

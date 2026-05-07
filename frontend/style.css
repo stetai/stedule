@@ -430,6 +430,54 @@ select {
   margin-left: auto;
 }
 
+/* --------------------------------------------------------
+   quick add
+-------------------------------------------------------- */
+
+.quick-add-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 120;
+
+  transform: translateY(100%);
+  transition: transform 0.15s;
+}
+
+.quick-add-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quick-add-bar.open {
+  transform: translateY(0);
+}
+
+#quick-add-title {
+  flex: 1;
+  font-size: 1.1rem;
+  min-width: 0;
+}
+
+.quick-add-time {
+  font-size: 0.95rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.quick-add-actions {
+  display: flex;
+  gap: 6px;
+}
+
 /* ============================================================
    FORM FIELDS
 ============================================================ */
@@ -835,6 +883,16 @@ select:focus {
   white-space: nowrap;
   /* Hide the time label when the event chip is too short to fit it */
   overflow: hidden;
+}
+
+.week-event-outline {
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  border: 2px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  pointer-events: none; /* prevent pointer events for dragging */
+  z-index: 2;
 }
 
 /* Make text unselectable */
