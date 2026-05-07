@@ -25,7 +25,7 @@ let currentView = 'week';      // 'month' | 'week' | 'day' (week/day = future wo
 let editingId   = null;         // ID of the event currently in the modal, or null
 
 let _weekDayNum = 7;
-let _firstWeekday = "Mon";
+let _firstWeekday = 0; //0 = "Mon", 1 = "Tue", etc
 let _seqcDayNum = 1;
 
 // ============================================================
@@ -144,7 +144,7 @@ function navigate(direction) {
   } else if (currentView === 'week') {
     currentDate.setDate(currentDate.getDate() + 7 * direction); // 7 stays here
   } else if (currentView === 'day') {
-    currentDate.setDate(currentDate.getDate() + direction);
+    currentDate.setDate(currentDate.getDate() + _seqcDayNum * direction);
   }
   renderCalendar();
 }
@@ -259,7 +259,13 @@ function renderWeekView() {
   headerRow.className = 'week-header-row';
 
   const gutterSpacer = document.createElement('div');
+  const wn = document.createElement('span');
+  const weekNumber = getWeekNumber(monday); // get week number
+  wn.className = 'wdh-name';
+  wn.textContent = weekNumber;
   gutterSpacer.className = 'week-gutter-spacer';
+  gutterSpacer.appendChild(wn);
+
   headerRow.appendChild(gutterSpacer);
 
   for (let i = 0; i < _weekDayNum; i++) {
@@ -271,6 +277,7 @@ function renderWeekView() {
     
     const name = document.createElement('span');
     name.className = 'wdh-name';
+    //display weekday names in local format
     name.textContent = day.toLocaleDateString('default', { weekday: 'short'});
 
     const num = document.createElement('span');
@@ -401,6 +408,15 @@ function renderWeekView() {
   scroll.appendChild(body);
   view.appendChild(scroll);
   elGrid.appendChild(view);
+}
+
+/* Determine week number of the current week*/
+function getWeekNumber(d) {
+    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
+    var yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+    var weekNo = Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
+    return weekNo;
 }
 
 // --- Day view (scaffold) ---

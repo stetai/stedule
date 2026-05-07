@@ -22,8 +22,8 @@
   --color-border:      #3a322d;   /* subtle warm borders */
   --color-text:        #f2ece8;   /* slightly warm white */
   --color-text-muted:  #a79b94;   /* desaturated warm grey */
-  --color-accent:      #b82a1a;   /* primary action red */
-  --color-accent-hover:#df4a39;
+  --color-accent:      #b81a1a;   /* primary action red */
+  --color-accent-hover:#df3939;
   --color-accent-soft: linear-gradient(
                          180deg,
                          rgba(217,74,58,0.18),
@@ -621,14 +621,16 @@ select:focus {
   flex-shrink: 0;
   border-bottom: 2px solid var(--color-border);
   padding-right: 1px;
-  background: var(--color-surface);
 }
 
-/* Blank spacer for alignment of date headers with day columns*/
+/* weekday number header for alignment of date headers with day columns*/
 .week-gutter-spacer { 
   width: var(--week-gutter-w, 19.0px);
   flex-shrink: 0;
-  border-right: 1px solid var(--color-border);
+  border-right:  0px solid var(--color-border);
+  align-items: normal;
+  justify-content: center;
+  cursor: default;
 }
 
 .week-day-header {
@@ -641,6 +643,7 @@ select:focus {
   gap: 1px;
   border-left: 1px solid var(--color-border);
   cursor: default;
+  background: var(--color-surface);
 }
 
 /* Abbreviated weekday name: "Mon" */
