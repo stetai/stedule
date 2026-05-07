@@ -16,6 +16,12 @@ For example, you could use the OSS [Syncthing](https://syncthing.net/).
 
 ## Run
 
+### Download for Android
+
+Download the latest version from [the releases](https://github.com/stetai/stedule/tags) and install it. 
+
+You may need to allow installation from unknown sources.
+
 ### Try it out on localhost
 
 Run the following line in a terminal from this folder (stedule/).
@@ -29,7 +35,7 @@ Click on "Open .ics file" to open your calendar.
 Updating the calendar (by editing or adding an event) will write the changes to the same file on a Chromium Browser.
 On Firefox Browsers, a download will be triggered, allowing you to replace the original file with the new downloaded file.
 
-### Android, Linux, Windows Build
+### Linux, Windows Build
 
 Coming soon...
 
