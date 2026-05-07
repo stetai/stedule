@@ -55,7 +55,7 @@ const elRepeatInterval = $('repeat-interval');
 const elRepeatEndType  = $('repeat-end-type');
 const elRepeatCount    = $('repeat-count');
 const elRepeatUntil    = $('repeat-until');
-const elRepeatWeekdays = document.getElementById('repeat-weekdays');
+const elRepeatWeekdays = $('repeat-weekdays');
 
 // ============================================================
 // INITIALIZATION

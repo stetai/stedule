@@ -105,6 +105,13 @@ body {
   overflow: hidden;
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
+  user-select:none;
+}
+
+input,
+textarea,
+select {
+  user-select: text;
 }
 
 /* ============================================================
@@ -828,4 +835,14 @@ select:focus {
   white-space: nowrap;
   /* Hide the time label when the event chip is too short to fit it */
   overflow: hidden;
+}
+
+/* Make text unselectable */
+*.unselectable {
+   -moz-user-select: -moz-none;
+   -khtml-user-select: none;
+   -webkit-user-select: none;
+   /*for IE >=10:*/
+   -ms-user-select: none;
+   user-select: none;
 }
