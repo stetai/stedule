@@ -29,6 +29,8 @@ let draftEvent     = null;        // Event that is being worked on in quickadd
 let draftOutlineEl = null;        // Outline of quickadd
 let moving         = false;       // Currently moving event draft?
 let startTop       = 0;
+let weekScrollEl   = null;
+let startScrollTop = 0;
 let draftColumn    = null;        // Column of event draft
 let resizing       = false;       // Currently resizing event draft?
 let startY         = 0;           //|Default values for quickadd outline
@@ -103,7 +105,7 @@ function init() {
 
   $('quick-add-open').addEventListener('click', (e) => {
     if (e.target.closest('.week-event-resize')) return;
-    
+
     openNewEventModal(draftEvent.start, draftEvent.title);
 
     closeQuickAdd();
@@ -116,6 +118,12 @@ function init() {
       const vv = window.visualViewport;
       const offset = window.innerHeight - (vv.height + vv.offsetTop);
       elQuickBar.style.bottom = `${Math.max(offset, 0)}px`;
+
+      if (weekScrollEl) {
+        const scrollRect = weekScrollEl.getBoundingClientRect();
+        const quickBarRect = elQuickBar.getBoundingClientRect();
+        weekScrollEl.style.height = `${quickBarRect.top - scrollRect.top}px`;
+      }
     };
 
     window.visualViewport.addEventListener('resize', updateQuickBarOffset);
@@ -346,6 +354,8 @@ function renderWeekView() {
   const scroll = document.createElement('div');
   scroll.className = 'week-scroll';
 
+  weekScrollEl = scroll;
+
   const body = document.createElement('div');
   body.className = 'week-body';
 
@@ -556,6 +566,8 @@ function startQuickAdd(col, startDate) {
     moving = true;
     startY = e.clientY;
     startTop = outline.offsetTop;
+    
+    startScrollTop = weekScrollEl.scrollTop;
 
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', stopMove);
@@ -576,6 +588,8 @@ function startQuickAdd(col, startDate) {
     resizing = true;
     startY = e.clientY;
     startHeight = outline.offsetHeight;
+    
+    startScrollTop = weekScrollEl.scrollTop;
 
     document.addEventListener('pointermove', onResize);
     document.addEventListener('pointerup', stopResize);
@@ -601,6 +615,11 @@ function startQuickAdd(col, startDate) {
   updateQuickBar();
 
   elQuickBar.classList.add('open');
+
+  const scrollRect = weekScrollEl.getBoundingClientRect();
+  const quickBarRect = elQuickBar.getBoundingClientRect();
+
+  weekScrollEl.style.height = `${quickBarRect.top - scrollRect.top}px`;
 
   elQuickTitle.value = '';
   elQuickTitle.focus({ preventScroll: true });
@@ -639,14 +658,16 @@ function onMove(e) {
     updateQuickBar();
   }
 
-  const dy = e.clientY - startY;
+  const scrollDelta = weekScrollEl.scrollTop - startScrollTop;
+  const dy = e.clientY - startY + scrollDelta;
 
   let newTop = startTop + dy;
 
   const snap = HOUR_H / 4; // 15 minutes
   newTop = Math.round(newTop / snap) * snap;
 
-  newTop = Math.max(0, newTop);
+  const maxTop = 24 * HOUR_H - draftOutlineEl.offsetHeight;
+  newTop = Math.max(0, Math.min(newTop, maxTop));
 
   draftOutlineEl.style.top = `${newTop}px`;
 
@@ -659,6 +680,8 @@ function onMove(e) {
 
   draftEvent.start = start;
   draftEvent.end = new Date(start.getTime() + duration);
+
+  autoScrollDuringDrag(e);
 
   updateQuickBar();
 }
@@ -673,6 +696,37 @@ function stopMove() {
   document.removeEventListener('pointerup', stopMove);
 }
 
+function autoScrollDuringDrag(e) {
+
+  if (!weekScrollEl) return;
+
+  const rect = weekScrollEl.getBoundingClientRect();
+  const quickBarRect = elQuickBar.getBoundingClientRect();
+
+  const edge = 40;        // trigger zone
+
+  const grid = weekScrollEl.querySelector('.week-body');
+
+  const gridHeight = grid.offsetHeight;
+  const visibleHeight = weekScrollEl.clientHeight;
+  const quickBarHeight = window.innerHeight - quickBarRect.top;
+
+  const maxScroll = Math.max(0, gridHeight - visibleHeight + quickBarHeight);
+
+  const distTop = rect.top + edge - e.clientY;
+  const distBot = e.clientY - (quickBarRect.top - edge);
+
+  if (distTop > 0) {
+    weekScrollEl.scrollTop =
+      Math.max(0, weekScrollEl.scrollTop - distTop * 0.3);
+  }
+
+  if (distBot > 0) {
+    weekScrollEl.scrollTop =
+      Math.min(maxScroll, weekScrollEl.scrollTop + distBot * 0.3);
+  }
+}
+
 function onResize(e) {
   if (!resizing) return;
 
@@ -684,8 +738,10 @@ function onResize(e) {
   const snap = HOUR_H / 4; // 15 minutes
   newHeight = Math.round(newHeight / snap) * snap;
 
+  const maxHeight = 24 * HOUR_H - draftOutlineEl.offsetHeight;
+
   const minHeight = snap;
-  newHeight = Math.max(newHeight, minHeight);
+  newHeight = Math.max(newHeight, Math.min(minHeight, maxHeight));
 
   draftOutlineEl.style.height = `${newHeight}px`;
 
@@ -693,6 +749,8 @@ function onResize(e) {
   draftEvent.end = new Date(
     draftEvent.start.getTime() + durationHours * 3600000
   );
+
+  autoScrollDuringDrag(e);
 
   updateQuickBar();
 }
@@ -721,6 +779,10 @@ function closeQuickAdd() {
   if (draftOutlineEl) {
     draftOutlineEl.remove();
     draftOutlineEl = null;
+  }
+
+  if (weekScrollEl) {
+    weekScrollEl.style.height = '';
   }
 
   elQuickBar.classList.remove('open');
