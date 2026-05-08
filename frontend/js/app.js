@@ -117,6 +117,13 @@ function init() {
     draftEvent.title = elQuickTitle.value;
   });
 
+  elQuickTitle.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleQuickSave();
+    }
+  });
+
   // move quick add along with keyboard
   if (window.visualViewport) {
     const updateQuickBarOffset = () => {
@@ -153,6 +160,13 @@ function init() {
   // Keyboard: Escape closes the modal.
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeModal();
+  });
+
+  elTitle.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleModalSave();
+    }
   });
 
   elRepeat.addEventListener('change', updateRepeatUI);
