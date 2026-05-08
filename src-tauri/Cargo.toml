@@ -1,8 +1,8 @@
 [package]
-name = "stedule"
-version = "0.1.1"
-description = "A Tauri App"
-authors = ["you"]
+name = "Stedule"
+version = "0.1.1-alpha"
+description = "A calendar application that saves its data in a local .ics file."
+authors = ["Steven Taing"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
