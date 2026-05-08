@@ -105,12 +105,17 @@ function init() {
 
   $('quick-add-open').addEventListener('click', (e) => {
     if (e.target.closest('.week-event-resize')) return;
-
-    openNewEventModal(draftEvent.start, draftEvent.title);
-
-    closeQuickAdd();
+    e.stopPropagation();
+    if (!draftEvent) return;
+    openNewEventModal(draftEvent.start, draftEvent.title, draftEvent.end);
   });
-  //$('quick-add-save').addEventListener('click', handleModalSave);
+  
+  $('quick-add-save').addEventListener('click', handleQuickSave);
+
+  elQuickTitle.addEventListener('input', () => {
+    if (!draftEvent) return;
+    draftEvent.title = elQuickTitle.value;
+  });
 
   // move quick add along with keyboard
   if (window.visualViewport) {
@@ -733,7 +738,8 @@ function onResize(e) {
 
   document.body.style.overflow = "hidden";
 
-  const dy = e.clientY - startY;
+  const scrollDelta = weekScrollEl.scrollTop - startScrollTop;
+  const dy = e.clientY - startY + scrollDelta;
   let newHeight = startHeight + dy;
 
   const snap = HOUR_H / 4; // 15 minutes
@@ -786,14 +792,43 @@ function closeQuickAdd() {
     weekScrollEl.style.maxHeight = '';
   }
 
+  elQuickTitle.value = '';
+
   elQuickBar.classList.remove('open');
+}
+
+function handleQuickSave() {
+
+  if (!draftEvent) return;
+
+  const title = elQuickTitle.value.trim();
+
+  if (!title) {
+    elQuickTitle.focus();
+    return;
+  }
+
+  const newEvent = createEvent({
+    title,
+    start: draftEvent.start,
+    end: draftEvent.end,
+    description: '',
+    color: '#A80808',
+    rrule: null
+  });
+
+  events.push(newEvent);
+
+  closeQuickAdd();
+  renderCalendar();
+  save();
 }
 
 // ============================================================
 // MODAL
 // ============================================================
 
-function openNewEventModal(date, title='') {
+function openNewEventModal(date, title='', end=null) {
   editingId = null;
   elModalTitle.textContent = 'New Event';
   elDeleteBtn.style.display = 'none';
@@ -802,7 +837,7 @@ function openNewEventModal(date, title='') {
   elTitle.value      = title;
   elDate.value       = toDateInputValue(date);
   elStartTime.value  = toTimeInputValue(date); 
-  elEndTime.value    = toTimeInputValue(addTime(date,1.5));
+  elEndTime.value    = elEndTime.value = toTimeInputValue(end ?? addTime(date,1.5));
   elDesc.value       = '';
   elColor.value      = '#A80808';
   elRepeat.value     = '';
@@ -818,6 +853,8 @@ function openNewEventModal(date, title='') {
   updateRepeatUI();
 
   openModal();
+
+  closeQuickAdd();
 
   // Focus the title field so the user can start typing immediately.
   elTitle.focus();
