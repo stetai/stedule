@@ -20,7 +20,8 @@ const isTauri = !!window.__TAURI__?.core;
 //const isTauri = window.__TAURI__ !== undefined;
 
 // Detect capability (Distinguish between Chromium, Firefox)
-const hasFileSystemAccess = !isTauri && 'showOpenFilePicker' in window;
+const isFirefox = CSS.supports('-moz-appearance', 'none'); // reliable CSS-based detection
+const hasFileSystemAccess = !isTauri && !isFirefox && 'showOpenFilePicker' in window;
 
 let _fileHandle = null; // Chromium: FileSystemFileHandle
 let _fileName   = null; // Both: display name
@@ -57,8 +58,10 @@ export async function openFile() {
 
   if (hasFileSystemAccess) {
     return _openChromium();
-  } else {
+  } else if (isFirefox){
     return _openFirefox();
+  } else {
+    throw new Error("Unsupported platform.")
   }
 }
 
@@ -104,9 +107,11 @@ export async function writeFile(content) {
   }
  
   if (hasFileSystemAccess) {
-    return _writeChromium(content);
+    return _writeChromium();
+  } else if (isFirefox){
+    return _writeFirefox();
   } else {
-    return _writeFirefox(content);
+    throw new Error("Unsupported platform.")
   }
 }
 

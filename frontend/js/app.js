@@ -120,9 +120,10 @@ function init() {
       elQuickBar.style.bottom = `${Math.max(offset, 0)}px`;
 
       if (weekScrollEl) {
-        const scrollRect = weekScrollEl.getBoundingClientRect();
-        const quickBarRect = elQuickBar.getBoundingClientRect();
-        weekScrollEl.style.height = `${quickBarRect.top - scrollRect.top}px`;
+        const bottomOffset = parseFloat(elQuickBar.style.bottom) || 0;
+        const quickBarTop  = window.innerHeight - bottomOffset - elQuickBar.offsetHeight;
+        const scrollTop    = weekScrollEl.getBoundingClientRect().top;
+        weekScrollEl.style.maxHeight = `${quickBarTop - scrollTop}px`; 
       }
     };
 
@@ -252,7 +253,7 @@ function renderCalendar() {
   }
 }
 
-function  renderWeekdayHeader(startDay = "Mon") { //todo: make flexible
+function renderWeekdayHeader(startDay = "Mon") { //todo: make flexible
   let days;
   if (startDay === "Mon") {
     days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
@@ -616,10 +617,11 @@ function startQuickAdd(col, startDate) {
 
   elQuickBar.classList.add('open');
 
-  const scrollRect = weekScrollEl.getBoundingClientRect();
-  const quickBarRect = elQuickBar.getBoundingClientRect();
+  const bottomOffset  = parseFloat(elQuickBar.style.bottom) || 0;
+  const quickBarTop   = window.innerHeight - bottomOffset - elQuickBar.offsetHeight;
+  const scrollTop     = weekScrollEl.getBoundingClientRect().top;
 
-  weekScrollEl.style.height = `${quickBarRect.top - scrollRect.top}px`;
+  weekScrollEl.style.maxHeight = `${quickBarTop - scrollTop}px`;
 
   elQuickTitle.value = '';
   elQuickTitle.focus({ preventScroll: true });
@@ -709,21 +711,20 @@ function autoScrollDuringDrag(e) {
 
   const gridHeight = grid.offsetHeight;
   const visibleHeight = weekScrollEl.clientHeight;
-  const quickBarHeight = window.innerHeight - quickBarRect.top;
 
-  const maxScroll = Math.max(0, gridHeight - visibleHeight + quickBarHeight);
+  const maxScroll = Math.max(0, gridHeight - visibleHeight);
 
   const distTop = rect.top + edge - e.clientY;
   const distBot = e.clientY - (quickBarRect.top - edge);
 
   if (distTop > 0) {
     weekScrollEl.scrollTop =
-      Math.max(0, weekScrollEl.scrollTop - distTop * 0.3);
+      Math.max(0, weekScrollEl.scrollTop - distTop * 0.1);
   }
 
   if (distBot > 0) {
     weekScrollEl.scrollTop =
-      Math.min(maxScroll, weekScrollEl.scrollTop + distBot * 0.3);
+      Math.min(maxScroll, weekScrollEl.scrollTop + distBot * 0.1);
   }
 }
 
@@ -782,7 +783,7 @@ function closeQuickAdd() {
   }
 
   if (weekScrollEl) {
-    weekScrollEl.style.height = '';
+    weekScrollEl.style.maxHeight = '';
   }
 
   elQuickBar.classList.remove('open');
