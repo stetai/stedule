@@ -337,7 +337,6 @@ select {
   font-size: 0.72rem;
   font-weight: 500;
   padding: 2px var(--space-xs);
-  padding-top: 3px;
   border-radius: 3px;
   color: white;
   white-space: nowrap;
@@ -844,6 +843,7 @@ select:focus {
   left: 1px;
   border-radius: var(--radius-sm);
   padding: 1px 1px;
+  padding-top: 1px;
   color: white;
   cursor: pointer;
   overflow: hidden;
@@ -867,6 +867,7 @@ select:focus {
 .week-event-title {
   font-size: 0.70rem;
   font-weight: 550;
+  padding-top: 1px;
   /*white-space: nowrap;
   text-overflow: ellipsis;*/
   overflow: hidden;/*hidden*/
