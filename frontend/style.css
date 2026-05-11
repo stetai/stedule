@@ -337,6 +337,7 @@ select {
   font-size: 0.72rem;
   font-weight: 500;
   padding: 2px var(--space-xs);
+  padding-top: 3px;
   border-radius: 3px;
   color: white;
   white-space: nowrap;
