@@ -3,6 +3,8 @@
 use tauri::command;
 use tauri_plugin_dialog::DialogExt;
 
+mod notification_scheduler;
+
 #[command]
 async fn open_calendar(app: tauri::AppHandle) -> Result<Option<String>, String> {
     let (tx, rx) = tokio::sync::oneshot::channel();
@@ -23,9 +25,12 @@ async fn open_calendar(app: tauri::AppHandle) -> Result<Option<String>, String> 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(notification_scheduler::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![open_calendar/*, write_calendar*/])
+        .invoke_handler(tauri::generate_handler![open_calendar
+            /*, write_calendar*/ // off-loaded to android
+            ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
