@@ -177,9 +177,9 @@ function init() {
   setStatus('No file open. Click "Open .ics file" to begin.');
 }
 
-// ============================================================
+// ------------------------------------------------------------
 // FILE HANDLING
-// ============================================================
+// ------------------------------------------------------------
 
 async function handleOpenFile() {
   try {
@@ -210,9 +210,9 @@ async function save() {
   }
 }
 
-// ============================================================
+// ------------------------------------------------------------
 // NAVIGATION
-// ============================================================
+// ------------------------------------------------------------
 
 function navigate(direction) {
   if (currentView === 'month') {
@@ -241,9 +241,9 @@ function switchView(view) {
   renderCalendar();
 }
 
-// ============================================================
+// ------------------------------------------------------------
 // RENDERING
-// ============================================================
+// ------------------------------------------------------------
 
 function renderCalendar() {
   // Clear previous render
@@ -423,11 +423,21 @@ function renderWeekView() {
     for (const item of laidOut) {
       const ev = item.event;
       
+      // create event chip
       if (ev.allDay) continue; // all-day events stay in month-chip style
  
-      const startH   = ev.start.getHours() + ev.start.getMinutes() / 60;
-      const endDate  = ev.end ?? new Date(ev.start.getTime() + 60 * 60 * 1000);
-      const endH     = endDate.getHours() + endDate.getMinutes() / 60;
+      let startH = 0;
+      if (ev.start.getDate() === day.getDate()) {
+        startH = ev.start.getHours() + ev.start.getMinutes() / 60; 
+      }
+
+      const endDate  = ev.end ?? new Date(ev.start.getTime() + 2 * 60 * 60 * 1000); // if unspecified: 2h after start
+
+      let endH = 24;
+      if (endDate.getDate() === day.getDate()) {
+        endH = endDate.getHours() + endDate.getMinutes() / 60;
+      }
+
       // Clamp to a minimum visual height so short events are still clickable
       const duration = Math.max(endH - startH, 0.25);
 
@@ -1092,9 +1102,9 @@ function setStatus(message, type = '') {
   }
 }
 
-// ============================================================
+// ------------------------------------------------------------
 // UTILITY
-// ============================================================
+// ------------------------------------------------------------
 
 function weekRangeLabel(date) {
   const monday = startOfWeek(date);

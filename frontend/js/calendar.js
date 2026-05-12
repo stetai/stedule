@@ -160,9 +160,14 @@ export function eventsOnDay(events, date) {
 
     if (!ev.start) continue;
 
+    if (!ev.end) ev.end=ev.start;
+
     if (!ev.rrule) {
 
-      if (ev.start < dayEnd && (ev.end ?? ev.start) > dayStart) {
+      if (
+           (ev.start < dayEnd && ev.start > dayStart) // starts on day
+        || (ev.end < dayEnd && ev.end > dayStart) // ends on day
+        || (ev.start < dayStart && ev.end > dayEnd)) { // covers day
         result.push(ev);
       }
 
@@ -298,9 +303,12 @@ function recursOnDay(ev, date) {
 
     const js = next.toJSDate();
 
-    if (js >= dayStart.toJSDate()&& js <= dayEnd.toJSDate()) {
+    if ((js.start >= dayStart.toJSDate() && js.start < dayEnd.toJSDate())
+      ||(js.end > dayStart.toJSDate() && js.end <= dayEnd.toJSDate())
+      ||(js.start < dayStart.toJSDate() && js.end > dayEnd.toJSDate())
+    ) {
       
-      if (ev.exdates?.some(d => isSameDay(d, js))) {
+      if (ev.exdates?.some(d => isSameDay(d, js))) { //ignore exceptions to rrule
         continue;
       }
 
