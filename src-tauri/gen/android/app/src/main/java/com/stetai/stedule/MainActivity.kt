@@ -6,6 +6,7 @@ import app.tauri.plugin.PluginManager
 
 class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
+    registerPlugin(NotificationSchedulerPlugin::class.java)
     PluginManager.onActivityCreate(this)
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
