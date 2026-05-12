@@ -189,11 +189,12 @@ async function handleOpenFile() {
     const saveNote = canWriteInPlace() ? '' : ' · Firefox: saves will download a new file';
     setStatus(`Loaded: ${getFileName()} — ${events.length} event(s)${saveNote}`, 'saved');
   } catch (err) {
-    // The File System Access API throws an AbortError when the user
-    // cancels the picker. This is not a real error — don't show an alert.
+    // don't show error if it comes from user input
     if (err.name === 'AbortError') return;
     console.error('Open failed:', err);
     setStatus(`Error opening file: ${err?.message ?? String(err)}`, 'error');
+
+    initNotifications(); //initialize notifications
   }
 }
 
@@ -1105,6 +1106,21 @@ function setStatus(message, type = '') {
 // ------------------------------------------------------------
 // UTILITY
 // ------------------------------------------------------------
+
+// Notifications
+async function initNotifications(events) { //todo: here ok?
+  for (ev in events) {
+    const minsBefore = 10
+    const timeMinsBefore = new Date(ev.start.getTime() - minsBefore * 60 * 1000);
+    await scheduleEventNotification(
+      notificationId(ev.id, 10),
+      ev.title,
+      'Starting in 10 minutes',
+      timeMinsBefore,
+      10
+    );
+  }
+}
 
 function weekRangeLabel(date) {
   const monday = startOfWeek(date);

@@ -7,6 +7,42 @@ if (!ICAL) {
   throw new Error("ical.js failed to load — window.ICAL is undefined");
 }
 
+/* #############################################################
+ *   Notifications
+ * ########################################################## */
+
+import { invoke } from '@tauri-apps/api/core';
+
+/**
+ * Schedules a notification at a specific Date.
+ * @param {string} uuid: 
+ * @param {string} title
+ * @param {string} body: Notification content
+ * @param {Date} triggerDate: Time of trigger
+ * 
+ */
+export async function scheduleEventNotification(uuid, title, body, triggerDate, offsetMinutes) {
+
+  id = notificationId(uuid, offsetMinutes);
+
+  await invoke('schedule_notification', {
+    id, //must be unique per event; reuse the same id to update.
+    title,
+    body,
+    triggerMs: triggerDate.getTime(), // Unix ms, matches AlarmManager.RTC_WAKEUP
+  });
+}
+
+export async function cancelEventNotification(id) {
+  await invoke('cancel_notification', { id });
+}
+
+function notificationId(eventId, offsetMinutes) {
+  let h = 0;
+  for (const c of eventId) h = (Math.imul(31, h) + c.charCodeAt(0)) | 0;
+  return (Math.abs(h) % 2_000_000) * 10 + offsetMinutes ;
+}
+
 // ============================================================
 // FACTORY FUNCTION
 // ============================================================
