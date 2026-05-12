@@ -50,3 +50,12 @@ class NotificationReceiver : BroadcastReceiver() {
         mgr.notify(id, notification)
     }
 }
+
+class BootReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+        // Read persisted scheduled notifications from SharedPreferences or a local DB,
+        // then call AlarmManager.setExactAndAllowWhileIdle() for each future one.
+        // We'll implement the persistence layer in the next step.
+    }
+}
