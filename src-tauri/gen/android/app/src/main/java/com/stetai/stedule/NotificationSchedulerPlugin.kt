@@ -1,0 +1,83 @@
+package com.stetai.stedule
+
+import android.app.Activity
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import app.tauri.annotation.Command
+import app.tauri.annotation.TauriPlugin
+import app.tauri.plugin.Invoke
+import app.tauri.plugin.JSObject
+import app.tauri.plugin.Plugin
+
+// Data classes Tauri deserialises from the JS payload automatically
+data class ScheduleArgs(val id: Int, val title: String, val body: String, val triggerMs: Long)
+data class CancelArgs(val id: Int)
+
+@TauriPlugin
+class NotificationSchedulerPlugin(private val activity: Activity) : Plugin(activity) {
+
+    @Command
+    fun scheduleNotification(invoke: Invoke) {
+        val args = invoke.parseArgs(ScheduleArgs::class.java)
+
+        val context      = activity.applicationContext
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+        // Android 12+ requires explicit permission for exact alarms.
+        // canScheduleExactAlarms() returns true if USE_EXACT_ALARM is (auto-)granted
+        // or if the user approved SCHEDULE_EXACT_ALARM.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            !alarmManager.canScheduleExactAlarms()) {
+            invoke.reject("Exact alarm permission not granted. Direct user to Settings.")
+            return
+        }
+
+        val pending = buildPendingIntent(context, args.id, args.title, args.body)
+
+        // setExactAndAllowWhileIdle fires even when the device is in Doze mode.
+        alarmManager.setExactAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP,  // wake the device; time is wall-clock UTC ms
+            args.triggerMs,
+            pending
+        )
+
+        invoke.resolve(JSObject())
+    }
+
+    @Command
+    fun cancelNotification(invoke: Invoke) {
+        val args    = invoke.parseArgs(CancelArgs::class.java)
+        val context = activity.applicationContext
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+        // Must construct an identical PendingIntent to cancel.
+        val pending = PendingIntent.getBroadcast(
+            context,
+            args.id,
+            Intent(context, NotificationReceiver::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        alarmManager.cancel(pending)
+        invoke.resolve(JSObject())
+    }
+
+    private fun buildPendingIntent(
+        context: Context, id: Int, title: String, body: String
+    ): PendingIntent {
+        val intent = Intent(context, NotificationReceiver::class.java).apply {
+            putExtra(NotificationReceiver.EXTRA_ID,    id)
+            putExtra(NotificationReceiver.EXTRA_TITLE, title)
+            putExtra(NotificationReceiver.EXTRA_BODY,  body)
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            id, 
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+}
