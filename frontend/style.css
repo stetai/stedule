@@ -839,8 +839,11 @@ select:focus {
 
 .week-event {
   position: absolute;
-  /* left/right leave a 1px gap from the column edges */
+  /* left: leave a 1px gap from the column edges */
   left: 1px;
+  /* top, bottom: 1px gap to neighbouring events*/
+  top: 0.5px;
+  bottom: 0.5px;
   border-radius: var(--radius-sm);
   padding: 1px 1px;
   padding-top: 1px;
