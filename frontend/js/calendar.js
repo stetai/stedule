@@ -301,11 +301,13 @@ function recursOnDay(ev, date) {
 
     if (next.compare(dayEnd) > 0) break;
 
-    const js = next.toJSDate();
+    const jsStart  = next.toJSDate();
+    const duration = (ev.end ?? ev.start) - ev.start;
+    const jsEnd    = new Date(jsStart.getTime() + duration);
 
-    if ((js.start >= dayStart.toJSDate() && js.start < dayEnd.toJSDate())
-      ||(js.end > dayStart.toJSDate() && js.end <= dayEnd.toJSDate())
-      ||(js.start < dayStart.toJSDate() && js.end > dayEnd.toJSDate())
+    if ((jsStart >= dayStart.toJSDate() && jsStart < dayEnd.toJSDate())
+      ||(jsEnd > dayStart.toJSDate() && jsEnd <= dayEnd.toJSDate())
+      ||(jsStart < dayStart.toJSDate() && jsEnd > dayEnd.toJSDate())
     ) {
       
       if (ev.exdates?.some(d => isSameDay(d, js))) { //ignore exceptions to rrule

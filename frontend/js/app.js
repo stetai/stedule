@@ -53,9 +53,10 @@ const elStatus     = $('status-bar');
 const elOverlay    = $('modal-overlay');
 const elModalTitle = $('modal-title');
 const elTitle      = $('event-title');
-const elDate       = $('event-date');
 const elWeekdays   = $('weekday-headers');
+const elStartDate  = $('event-start-date');
 const elStartTime  = $('event-start-time');
+const elEndDate    = $('event-end-date');
 const elEndTime    = $('event-end-time');
 const elRepeat     = $('event-repeat');
 const elDesc       = $('event-description');
@@ -859,9 +860,11 @@ function openNewEventModal(date, title='', end=null) {
 
   // Pre-fill with the clicked date and a sensible default time
   elTitle.value      = title;
-  elDate.value       = toDateInputValue(date);
+  elStartDate.value  = toDateInputValue(date);
   elStartTime.value  = toTimeInputValue(date); 
-  elEndTime.value    = elEndTime.value = toTimeInputValue(end ?? addTime(date,1.5));
+  const defaultEnd   = addTime(date,1.5);
+  elEndTime.value    = toTimeInputValue(end ?? defaultEnd);
+  elEndDate.value    = toDateInputValue(end ?? defaultEnd);
   elDesc.value       = '';
   elColor.value      = '#A80808';
   elRepeat.value     = '';
@@ -904,7 +907,7 @@ function updateRepeatUI() {
   if (freq === "WEEKLY") {
     elRepeatWeekdays.style.display = 'flex';
 
-    const weekday = ["SU","MO","TU","WE","TH","FR","SA"][new Date(elDate.value).getDay()];
+    const weekday = ["SU","MO","TU","WE","TH","FR","SA"][new Date(elStartDate.value).getDay()];
 
     const cb = document.querySelector(`#repeat-weekdays input[value="${weekday}"]`);
     if (cb && !document.querySelector("#repeat-weekdays input:checked")) {
@@ -925,13 +928,13 @@ function openEditEventModal(ev) {
   elDeleteBtn.style.display = '';
 
   elTitle.value     = ev.title;
-  elDate.value      = toDateInputValue(ev.seriesStart ?? ev.start);
+  elStartDate.value      = toDateInputValue(ev.seriesStart ?? ev.start);
   elStartTime.value = toTimeInputValue(ev.seriesStart ?? ev.start);
-  elEndTime.value   = toTimeInputValue(
-    ev.seriesStart ? 
+  const end  = ev.seriesStart ? 
     new Date(ev.seriesStart.getTime() + (ev.end - ev.start)) :
-    (ev.end ?? ev.start)
-  );
+    (ev.end ?? ev.start);
+  elEndDate.value   = toDateInputValue(end);
+  elEndTime.value   = toTimeInputValue(end);
   elDesc.value      = ev.description ?? '';
   elColor.value     = ev.color ?? '#A80808';
 
@@ -997,8 +1000,8 @@ function handleModalSave() {
     return;
   }
 
-  const start = combineDateAndTime(elDate.value, elStartTime.value);
-  const end   = combineDateAndTime(elDate.value, elEndTime.value);
+  const start = combineDateAndTime(elStartDate.value, elStartTime.value);
+  const end   = combineDateAndTime(elEndDate.value, elEndTime.value);
 
   const repeat = elRepeat.value || null;
   let rrule = null;
