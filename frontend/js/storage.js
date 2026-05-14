@@ -107,9 +107,9 @@ export async function writeFile(content) {
   }
  
   if (hasFileSystemAccess) {
-    return _writeChromium();
+    return _writeChromium(content);
   } else if (isFirefox){
-    return _writeFirefox();
+    return _writeFirefox(content);
   } else {
     throw new Error("Unsupported platform.")
   }
