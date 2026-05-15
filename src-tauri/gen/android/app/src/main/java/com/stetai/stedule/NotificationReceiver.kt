@@ -41,9 +41,40 @@ class NotificationReceiver : BroadcastReceiver() {
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
-        // Read persisted scheduled notifications from SharedPreferences or a local DB,
-        // then call AlarmManager.setExactAndAllowWhileIdle() for each future one.
-        // We'll implement the persistence layer in the next step.
-        // Persistence implementation goes here — see Major Gaps
+
+        val prefs = context.getSharedPreferences("scheduled_notifs", Context.MODE_PRIVATE)
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val now = System.currentTimeMillis()
+        val editor = prefs.edit()
+
+        for ((key, value) in prefs.all) {
+            val parts = (value as? String)?.split("|") ?: continue
+            if (parts.size < 4) continue
+
+            val id        = parts[0].toIntOrNull() ?: continue
+            val title     = parts[1]
+            val body      = parts[2]
+            val triggerMs = parts[3].toLongOrNull() ?: continue
+
+            if (triggerMs <= now) {
+                editor.remove(key)   // past — clean up
+                continue
+            }
+
+            val pending = PendingIntent.getBroadcast(
+                context,
+                id,
+                Intent(context, NotificationReceiver::class.java).apply {
+                    putExtra(NotificationReceiver.EXTRA_ID,    id)
+                    putExtra(NotificationReceiver.EXTRA_TITLE, title)
+                    putExtra(NotificationReceiver.EXTRA_BODY,  body)
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMs, pending)
+        }
+
+        editor.apply()
     }
 }

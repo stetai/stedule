@@ -124,4 +124,34 @@ class NotificationSchedulerPlugin(private val activity: Activity) : Plugin(activ
         activity.startActivity(intent)
         invoke.resolve(JSObject())
     }
+
+    @Command
+    fun scheduleNotification(invoke: Invoke) {
+        val args = invoke.parseArgs(ScheduleArgs::class.java)
+        // ... existing validation ...
+
+        val context = activity.applicationContext
+
+        // Persist before scheduling so BootReceiver can rebuild it
+        val prefs = context.getSharedPreferences("scheduled_notifs", Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString(args.id.toString(), "${args.id}|${args.title}|${args.body}|${args.triggerMs}")
+            .apply()
+
+        val pending = buildPendingIntent(context, args.id, args.title, args.body)
+        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, args.triggerMs, pending)
+        invoke.resolve(JSObject())
+    }
+
+    @Command
+    fun cancelNotification(invoke: Invoke) {
+        val args = invoke.parseArgs(CancelArgs::class.java)
+        val context = activity.applicationContext
+
+        // Remove from persistence too
+        val prefs = context.getSharedPreferences("scheduled_notifs", Context.MODE_PRIVATE)
+        prefs.edit().remove(args.id.toString()).apply()
+
+        // ... rest of existing cancel logic ...
+    }
 }
