@@ -35,24 +35,28 @@ class NotificationSchedulerPlugin(private val activity: Activity) : Plugin(activ
         val context      = activity.applicationContext
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
-        // Android 12+ requires explicit permission for exact alarms.
-        // canScheduleExactAlarms() returns true if USE_EXACT_ALARM is (auto-)granted
-        // or if the user approved SCHEDULE_EXACT_ALARM.
+    
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
             !alarmManager.canScheduleExactAlarms()) {
-            val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
-            activity.startActivity(intent)
-            invoke.reject("Exact alarm permission not granted. Direct user to Settings.")
+            activity.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
+            invoke.reject("Exact alarm permission not granted. Redirecting to Settings.")
             return
         }
 
-        val pending = buildPendingIntent(context, args.id, args.title, args.body)
+        // Persist so BootReceiver can rebuild after reboot
+        context.getSharedPreferences("scheduled_notifs", Context.MODE_PRIVATE)
+            .edit()
+            .putString(args.id.toString(), "${args.id}|${args.title}|${args.body}|${args.triggerMs}")
+            .apply()
 
-        // setExactAndAllowWhileIdle fires even when the device is in Doze mode.
         alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,  // wake the device; time is wall-clock UTC ms
+            AlarmManager.RTC_WAKEUP, 
             args.triggerMs,
-            pending
+            buildPendingIntent(
+                context, 
+                args.id, 
+                args.title, 
+                args.body)
         )
 
         invoke.resolve(JSObject())
@@ -62,12 +66,15 @@ class NotificationSchedulerPlugin(private val activity: Activity) : Plugin(activ
     fun cancelNotification(invoke: Invoke) {
         val args    = invoke.parseArgs(CancelArgs::class.java)
         val context = activity.applicationContext
+
+        context.getSharedPreferences("scheduled_notifs", Context.MODE_PRIVATE)
+            .edit().remove(args.id.toString()).apply()
+
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
-        // Must construct an identical PendingIntent to cancel.
+
         val pending = PendingIntent.getBroadcast(
-            context,
-            args.id,
+            context, args.id,
             Intent(context, NotificationReceiver::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -125,33 +132,4 @@ class NotificationSchedulerPlugin(private val activity: Activity) : Plugin(activ
         invoke.resolve(JSObject())
     }
 
-    @Command
-    fun scheduleNotification(invoke: Invoke) {
-        val args = invoke.parseArgs(ScheduleArgs::class.java)
-        // ... existing validation ...
-
-        val context = activity.applicationContext
-
-        // Persist before scheduling so BootReceiver can rebuild it
-        val prefs = context.getSharedPreferences("scheduled_notifs", Context.MODE_PRIVATE)
-        prefs.edit()
-            .putString(args.id.toString(), "${args.id}|${args.title}|${args.body}|${args.triggerMs}")
-            .apply()
-
-        val pending = buildPendingIntent(context, args.id, args.title, args.body)
-        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, args.triggerMs, pending)
-        invoke.resolve(JSObject())
-    }
-
-    @Command
-    fun cancelNotification(invoke: Invoke) {
-        val args = invoke.parseArgs(CancelArgs::class.java)
-        val context = activity.applicationContext
-
-        // Remove from persistence too
-        val prefs = context.getSharedPreferences("scheduled_notifs", Context.MODE_PRIVATE)
-        prefs.edit().remove(args.id.toString()).apply()
-
-        // ... rest of existing cancel logic ...
-    }
 }
