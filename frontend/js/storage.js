@@ -178,10 +178,14 @@ async function _writeChromium(content) {
     throw new Error('Write permission was denied by the browser.');
   }
 
-  // createWritable() opens a write stream.
-  const writable = await _fileHandle.createWritable();
-  await writable.write(content);
-  await writable.close(); // save write changes
+  try {
+    const writable = await _fileHandle.createWritable();
+    await writable.write(content);
+    await writable.close(); // save write changes
+  } catch (err) {
+    console.error(err.name, err.message);
+  }
+
 }
 
 // -- Firefox implementation ---------------------------------------------
