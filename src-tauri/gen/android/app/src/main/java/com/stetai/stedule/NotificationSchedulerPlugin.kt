@@ -12,6 +12,9 @@ import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
 
+import app.tauri.annotation.PermissionCallback
+import app.tauri.plugin.PermissionState
+
 // Data classes Tauri deserialises from the JS payload automatically
 data class ScheduleArgs(val id: Int, val title: String, val body: String, val triggerMs: Long)
 data class CancelArgs(val id: Int)
@@ -69,13 +72,14 @@ class NotificationSchedulerPlugin(private val activity: Activity) : Plugin(activ
         invoke.resolve(JSObject())
     }
 
+    companion object {
+        private const val POST_NOTIF_REQUEST_CODE = 3521
+    }
+
     // Request runtime permission for Andriod 13+
     @Command
     fun requestNotificationPermission(invoke: Invoke) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            companion object {
-                private const val POST_NOTIF_REQUEST_CODE = 3521
-            }
             requestPermissions(invoke, arrayOf(
                 android.Manifest.permission.POST_NOTIFICATIONS
             ), POST_NOTIF_REQUEST_CODE)

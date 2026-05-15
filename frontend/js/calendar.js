@@ -24,7 +24,7 @@ export async function refreshNotifs(events) {
       const timeMinsBefore = new Date(ev.start.getTime() - minsBefore * 60 * 1000);
 
       await scheduleEventNotification(
-        notificationId(ev.id, 10),
+        ev.id,
         ev.title,
         'Starting in 10 minutes',
         timeMinsBefore,
@@ -322,8 +322,6 @@ export function toTimeInputValue(date) {
  * @returns {Date}
  */
 export function combineDateAndTime(dateStr, timeStr) {
-  // `new Date("2024-10-15T09:00")` — without a timezone suffix,
-  // the browser interprets this in LOCAL time. That's what we want.
   return new Date(`${dateStr}T${timeStr}`);
 }
 
