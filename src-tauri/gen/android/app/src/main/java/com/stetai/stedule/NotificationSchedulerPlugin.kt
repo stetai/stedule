@@ -22,6 +22,10 @@ class NotificationSchedulerPlugin(private val activity: Activity) : Plugin(activ
     @Command
     fun scheduleNotification(invoke: Invoke) {
         val args = invoke.parseArgs(ScheduleArgs::class.java)
+        if (args.triggerMs <= System.currentTimeMillis()) {
+            invoke.reject("trigger_ms is in the past or missing")
+            return
+        }
 
         val context      = activity.applicationContext
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -50,6 +54,10 @@ class NotificationSchedulerPlugin(private val activity: Activity) : Plugin(activ
     @Command
     fun cancelNotification(invoke: Invoke) {
         val args    = invoke.parseArgs(CancelArgs::class.java)
+        if (args.triggerMs <= System.currentTimeMillis()) {
+            invoke.reject("trigger_ms is in the past or missing")
+            return
+        }
         val context = activity.applicationContext
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
