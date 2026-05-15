@@ -201,6 +201,8 @@ async function handleOpenFile() {
 async function save() {
   if (!hasFileOpen()) return;
 
+  console.log(typeof serializeICS(events), serializeICS(events));
+
   setStatus('Saving…', 'saving');
   try {
     await writeFile(serializeICS(events));
