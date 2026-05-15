@@ -369,7 +369,7 @@ function recursOnDay(ev, date) {
       ||(jsStart < dayStart.toJSDate() && jsEnd > dayEnd.toJSDate())
     ) {
       
-      if (ev.exdates?.some(d => isSameDay(d, js))) { //ignore exceptions to rrule
+      if (ev.exdates?.some(d => isSameDay(d, jsStart))) { //ignore exceptions to rrule
         continue;
       }
 

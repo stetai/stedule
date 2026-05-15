@@ -107,9 +107,9 @@ export async function writeFile(content) {
   }
  
   if (hasFileSystemAccess) {
-    return _writeChromium();
+    return _writeChromium(content);
   } else if (isFirefox){
-    return _writeFirefox();
+    return _writeFirefox(content);
   } else {
     throw new Error("Unsupported platform.")
   }
@@ -178,10 +178,11 @@ async function _writeChromium(content) {
     throw new Error('Write permission was denied by the browser.');
   }
 
-  // createWritable() opens a write stream.
   const writable = await _fileHandle.createWritable();
-  await writable.write(content);
-  await writable.close(); // save write changes
+  await writable.write(String(content));
+  await writable.close();
+
+
 }
 
 // -- Firefox implementation ---------------------------------------------
