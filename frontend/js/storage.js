@@ -178,16 +178,10 @@ async function _writeChromium(content) {
     throw new Error('Write permission was denied by the browser.');
   }
 
-  try {
-    const writable = await _fileHandle.createWritable();
-    await writable.write({
-      type: "write",
-      data: String(content)
-    });
-    await writable.close();
-  } catch (err) {
-    console.error(err.name, err.message);
-  }
+  const writable = await _fileHandle.createWritable();
+  await writable.write(String(content));
+  await writable.close();
+
 
 }
 
