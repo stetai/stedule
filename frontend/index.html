@@ -119,18 +119,23 @@
           <input type="text" id="event-title" placeholder="Event name" autocomplete="off" enterkeyhint="done"/>
         </div>
 
-        <div class="field-group field-row">
-          <div class="field-group">
-            <label for="event-date">Date</label>
-            <input type="date" id="event-date" />
+        <div class="field-group">
+          <label for="event-start-date">Time</label>
+          <div class="field-group field-row">
+            <div class="field-group">
+              <input type="date" id="event-start-date" />
+            </div>
+            <div class="field-group">
+              <input type="time" id="event-start-time"/>
+            </div>
           </div>
-          <div class="field-group">
-            <label for="event-start-time">Start</label>
-            <input type="time" id="event-start-time" value="09:00" />
-          </div>
-          <div class="field-group">
-            <label for="event-end-time">End</label>
-            <input type="time" id="event-end-time" value="10:00" />
+          <div class="field-group field-row">
+            <div class="field-group">
+              <input type="date" id="event-end-date" />
+            </div>
+            <div class="field-group">
+              <input type="time" id="event-end-time"/>
+            </div>
           </div>
         </div>
 
