@@ -17,6 +17,11 @@ export async function refreshNotifs(events) {
 
   const cutoff = Date.now() + 48 * 60 * 60 * 1000;
 
+  // Cancel the fixed set of offsets for every known event first
+  for (const ev of events) {
+    await cancelEventNotification(notificationId(ev.id, 10)); //todo do this in a general way
+  }
+
   for (const ev of events) {
     if (ev.start > Date.now() && ev.start < cutoff) {
 
@@ -59,6 +64,11 @@ export async function scheduleEventNotification(uuid, title, body, triggerDate, 
 export async function cancelEventNotification(id) {
   const { invoke } = await import('@tauri-apps/api/core');
   await invoke('cancel_notification', { id });
+}
+
+async function rescheduleNotification(id, title, body, newTriggerDate) {
+  await cancelEventNotification(id);
+  await scheduleEventNotification(id, title, body, newTriggerDate, 0);
 }
 
 function notificationId(eventId, offsetMinutes) {

@@ -14,6 +14,8 @@ import app.tauri.plugin.Plugin
 
 import app.tauri.annotation.PermissionCallback
 import app.tauri.plugin.PermissionState
+import android.provider.Settings
+import android.net.Uri
 
 // Data classes Tauri deserialises from the JS payload automatically
 data class ScheduleArgs(val id: Int, val title: String, val body: String, val triggerMs: Long)
@@ -38,6 +40,8 @@ class NotificationSchedulerPlugin(private val activity: Activity) : Plugin(activ
         // or if the user approved SCHEDULE_EXACT_ALARM.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
             !alarmManager.canScheduleExactAlarms()) {
+            val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+            activity.startActivity(intent)
             invoke.reject("Exact alarm permission not granted. Direct user to Settings.")
             return
         }
@@ -73,7 +77,7 @@ class NotificationSchedulerPlugin(private val activity: Activity) : Plugin(activ
     }
 
     companion object {
-        private const val POST_NOTIF_REQUEST_CODE = 3521
+        private const val POST_NOTIF_ALIAS = "postNotifications"
     }
 
     // Request runtime permission for Andriod 13+
@@ -82,7 +86,7 @@ class NotificationSchedulerPlugin(private val activity: Activity) : Plugin(activ
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestPermissions(invoke, arrayOf(
                 android.Manifest.permission.POST_NOTIFICATIONS
-            ), POST_NOTIF_REQUEST_CODE)
+            ), POST_NOTIF_ALIAS)
         } else {
             // Granted implicitly on older Android
             invoke.resolve(JSObject().put("granted", true))
@@ -109,5 +113,15 @@ class NotificationSchedulerPlugin(private val activity: Activity) : Plugin(activ
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+    }
+
+    // Make sure exact notifications can be called
+    @Command
+    fun requestBatteryOptimisationExemption(invoke: Invoke) {
+        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+            data = Uri.parse("package:${activity.packageName}")
+        }
+        activity.startActivity(intent)
+        invoke.resolve(JSObject())
     }
 }

@@ -27,7 +27,7 @@ class NotificationReceiver : BroadcastReceiver() {
                     as NotificationManager
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification) // add a 24dp white icon to res/drawable
+            .setSmallIcon(R.drawable.ic_notification) 
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
