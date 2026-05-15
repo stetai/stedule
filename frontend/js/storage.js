@@ -180,8 +180,11 @@ async function _writeChromium(content) {
 
   try {
     const writable = await _fileHandle.createWritable();
-    await writable.write(content);
-    await writable.close(); // save write changes
+    await writable.write({
+      type: "write",
+      data: String(content)
+    });
+    await writable.close();
   } catch (err) {
     console.error(err.name, err.message);
   }
