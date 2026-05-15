@@ -69,6 +69,28 @@ class NotificationSchedulerPlugin(private val activity: Activity) : Plugin(activ
         invoke.resolve(JSObject())
     }
 
+    // Request runtime permission for Andriod 13+
+    @Command
+    fun requestNotificationPermission(invoke: Invoke) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            companion object {
+                private const val POST_NOTIF_REQUEST_CODE = 3521
+            }
+            requestPermissions(invoke, arrayOf(
+                android.Manifest.permission.POST_NOTIFICATIONS
+            ), POST_NOTIF_REQUEST_CODE)
+        } else {
+            // Granted implicitly on older Android
+            invoke.resolve(JSObject().put("granted", true))
+        }
+    }
+
+    @PermissionCallback
+    fun notificationPermissionCallback(invoke: Invoke) {
+        val granted = getPermissionState("postNotifications") == PermissionState.GRANTED
+        invoke.resolve(JSObject().put("granted", granted))
+    }
+
     private fun buildPendingIntent(
         context: Context, id: Int, title: String, body: String
     ): PendingIntent {

@@ -13,7 +13,7 @@ import {
   eventsOnDay, parseRRule, getAdjWeekday,
   isToday, startOfWeek, addTime,
   toDateInputValue, toTimeInputValue, combineDateAndTime,
-  scheduleEventNotification, notificationId,
+  scheduleEventNotification, refreshNotifsNotifs,
 } from './calendar.js';
 
 // ============================================================
@@ -176,6 +176,8 @@ function init() {
   renderCalendar();
   renderWeekdayHeader(_firstWeekday);
   setStatus('No file open. Click "Open .ics file" to begin.');
+
+  refreshNotifs(events);
 }
 
 // ------------------------------------------------------------
@@ -190,7 +192,6 @@ async function handleOpenFile() {
     const saveNote = canWriteInPlace() ? '' : ' · Firefox: saves will download a new file';
     setStatus(`Loaded: ${getFileName()} — ${events.length} event(s)${saveNote}`, 'saved');
 
-    initNotifications(events); //initialize notifications
   } catch (err) {
     // don't show error if it comes from user input
     if (err.name === 'AbortError') return;
@@ -1108,22 +1109,8 @@ function setStatus(message, type = '') {
 // UTILITY
 // ------------------------------------------------------------
 
-// Notifications
-async function initNotifications(events) { //todo: here ok?
-  for (const ev of events) {
-    if (ev.start <= new Date()) continue;
+// Circumvent hard cap on Android's exact alarms count
 
-    const minsBefore = 10
-    const timeMinsBefore = new Date(ev.start.getTime() - minsBefore * 60 * 1000);
-    await scheduleEventNotification(
-      notificationId(ev.id, 10),
-      ev.title,
-      'Starting in 10 minutes',
-      timeMinsBefore,
-      10
-    );
-  }
-}
 
 function weekRangeLabel(date) {
   const monday = startOfWeek(date);

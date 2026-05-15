@@ -44,5 +44,6 @@ class BootReceiver : BroadcastReceiver() {
         // Read persisted scheduled notifications from SharedPreferences or a local DB,
         // then call AlarmManager.setExactAndAllowWhileIdle() for each future one.
         // We'll implement the persistence layer in the next step.
+        // Persistence implementation goes here — see Major Gaps
     }
 }

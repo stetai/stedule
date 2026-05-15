@@ -11,6 +11,29 @@ if (!ICAL) {
  *   Notifications
  * ########################################################## */
 
+export async function refreshNotifs(events) {
+  const {invoke} = await import('@tauri-apps/api/core');
+  await invoke('request_notification_permission', {});
+
+  const cutoff = Date.now() + 48 * 60 * 60 * 1000;
+
+  for (const ev of events) {
+    if (ev.start > Date.now() && ev.start < cutoff) {
+
+      const minsBefore = 10
+      const timeMinsBefore = new Date(ev.start.getTime() - minsBefore * 60 * 1000);
+
+      await scheduleEventNotification(
+        notificationId(ev.id, 10),
+        ev.title,
+        'Starting in 10 minutes',
+        timeMinsBefore,
+        10
+      );
+    }
+  }
+}
+
 /**
  * Schedules a notification at a specific Date.
  * @param {string} uuid: 
@@ -34,6 +57,7 @@ export async function scheduleEventNotification(uuid, title, body, triggerDate, 
 }
 
 export async function cancelEventNotification(id) {
+  const { invoke } = await import('@tauri-apps/api/core');
   await invoke('cancel_notification', { id });
 }
 
@@ -42,6 +66,7 @@ function notificationId(eventId, offsetMinutes) {
   for (const c of eventId) h = (Math.imul(31, h) + c.charCodeAt(0)) | 0;
   return (Math.abs(h) % 2_000_000) * 10 + offsetMinutes ;
 }
+
 
 // ============================================================
 // FACTORY FUNCTION
