@@ -11,8 +11,6 @@ if (!ICAL) {
  *   Notifications
  * ########################################################## */
 
-import { invoke } from '@tauri-apps/api/core';
-
 /**
  * Schedules a notification at a specific Date.
  * @param {string} uuid: 
@@ -22,6 +20,8 @@ import { invoke } from '@tauri-apps/api/core';
  * 
  */
 export async function scheduleEventNotification(uuid, title, body, triggerDate, offsetMinutes) {
+
+  const {invoke} = await import('@tauri-apps/api/core');
 
   id = notificationId(uuid, offsetMinutes);
 
