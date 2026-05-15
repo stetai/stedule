@@ -16,6 +16,29 @@ struct CancelPayload {
     id: i32,
 }
 
+#[derive(serde::Deserialize)]
+struct PermissionResult {
+    granted: bool,
+}
+
+#[derive(Serialize)]
+struct EmptyPayload {}
+
+#[tauri::command]
+pub async fn request_notification_permission<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<bool, String> {
+    #[cfg(target_os = "android")]
+    {
+        let result: PermissionResult = app
+            .run_mobile_plugin("requestNotificationPermission", EmptyPayload {})
+            .map_err(|e| e.to_string())?;
+        return Ok(result.granted);
+    }
+    #[cfg(not(target_os = "android"))]
+    Ok(true)
+}
+
 #[tauri::command]
 pub async fn schedule_notification<R: Runtime>(
     app:        AppHandle<R>,
@@ -51,7 +74,8 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("notification-scheduler")
         .invoke_handler(tauri::generate_handler![
             schedule_notification,
-            cancel_notification
+            cancel_notification,
+            request_notification_permission,
         ])
         .build()
 }

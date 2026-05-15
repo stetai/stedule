@@ -12,28 +12,31 @@ if (!ICAL) {
  * ########################################################## */
 
 export async function refreshNotifs(events) {
+  if (!window.__TAURI__) return;
+
   const {invoke} = await import('@tauri-apps/api/core');
-  await invoke('request_notification_permission', {});
+  const granted = await invoke('request_notification_permission', {});
+  if (!granted) return; // abort if user denied
 
   const cutoff = Date.now() + 48 * 60 * 60 * 1000;
 
   // Cancel the fixed set of offsets for every known event first
   for (const ev of events) {
-    await cancelEventNotification(notificationId(ev.id, 10)); //todo do this in a general way
+    await cancelEventNotification(notificationId(ev.id, 10)); // todo: do this in a general way, not just 10 mins
   }
 
   for (const ev of events) {
-    if (ev.start > Date.now() && ev.start < cutoff) {
+    if (ev.start.getTime() > Date.now() && ev.start < cutoff) {
 
       const minsBefore = 10
-      const timeMinsBefore = new Date(ev.start.getTime() - minsBefore * 60 * 1000);
+      const triggerDate = new Date(ev.start.getTime() - minsBefore * 60 * 1000);
 
       await scheduleEventNotification(
         ev.id,
         ev.title,
         'Starting in 10 minutes',
-        timeMinsBefore,
-        10
+        triggerDate,
+        minsBefore
       );
     }
   }

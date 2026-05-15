@@ -8,6 +8,9 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 
+import android.app.AlarmManager
+import android.app.PendingIntent
+
 class NotificationReceiver : BroadcastReceiver() {
 
     companion object {
