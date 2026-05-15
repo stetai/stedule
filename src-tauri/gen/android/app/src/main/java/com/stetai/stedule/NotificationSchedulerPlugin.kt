@@ -101,8 +101,8 @@ class NotificationSchedulerPlugin(private val activity: Activity) : Plugin(activ
     }
 
     @PermissionCallback
-    fun notificationPermissionCallback(invoke: Invoke) {
-        val granted = getPermissionState("postNotifications") == PermissionState.GRANTED
+    fun postNotificationsPermissionCallback(invoke: Invoke) {
+        val granted = getPermissionState(POST_NOTIF_ALIAS) == PermissionState.GRANTED
         invoke.resolve(JSObject().put("granted", granted))
     }
 

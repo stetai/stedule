@@ -26,7 +26,9 @@ export async function refreshNotifs(events) {
   }
 
   for (const ev of events) {
-    if (ev.start.getTime() > Date.now() && ev.start < cutoff) {
+    if (!ev.start || ev.allDay) continue;
+    
+    if (ev.start.getTime() > Date.now() && ev.start.getTime() < cutoff) {
 
       const minsBefore = 10
       const triggerDate = new Date(ev.start.getTime() - minsBefore * 60 * 1000);

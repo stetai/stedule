@@ -13,7 +13,7 @@ import {
   eventsOnDay, parseRRule, getAdjWeekday,
   isToday, startOfWeek, addTime,
   toDateInputValue, toTimeInputValue, combineDateAndTime,
-  scheduleEventNotification, refreshNotifsNotifs,
+  scheduleEventNotification, refreshNotifs,
 } from './calendar.js';
 
 // ============================================================
@@ -174,11 +174,16 @@ function init() {
   elRepeat.addEventListener('change', updateRepeatUI);
   elRepeatEndType.addEventListener('change', updateRepeatUI);
 
+  //reload all notificatins on app open
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && events.length > 0) {
+      refreshNotifs(events);
+    }
+  });
+
   renderCalendar();
   renderWeekdayHeader(_firstWeekday);
   setStatus('No file open. Click "Open .ics file" to begin.');
-
-  refreshNotifs(events);
 }
 
 // ------------------------------------------------------------
@@ -192,6 +197,8 @@ async function handleOpenFile() {
     renderCalendar();
     const saveNote = canWriteInPlace() ? '' : ' · Firefox: saves will download a new file';
     setStatus(`Loaded: ${getFileName()} — ${events.length} event(s)${saveNote}`, 'saved');
+
+    refreshNotifs(events);
 
   } catch (err) {
     // don't show error if it comes from user input
