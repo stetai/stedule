@@ -13,6 +13,7 @@ import {
   eventsOnDay, parseRRule, getAdjWeekday,
   isToday, startOfWeek, addTime,
   toDateInputValue, toTimeInputValue, combineDateAndTime,
+  scheduleEventNotification, notificationId,
 } from './calendar.js';
 
 // ============================================================
@@ -188,13 +189,13 @@ async function handleOpenFile() {
     renderCalendar();
     const saveNote = canWriteInPlace() ? '' : ' · Firefox: saves will download a new file';
     setStatus(`Loaded: ${getFileName()} — ${events.length} event(s)${saveNote}`, 'saved');
+
+    initNotifications(events); //initialize notifications
   } catch (err) {
     // don't show error if it comes from user input
     if (err.name === 'AbortError') return;
     console.error('Open failed:', err);
     setStatus(`Error opening file: ${err?.message ?? String(err)}`, 'error');
-
-    initNotifications(); //initialize notifications
   }
 }
 
@@ -1109,7 +1110,9 @@ function setStatus(message, type = '') {
 
 // Notifications
 async function initNotifications(events) { //todo: here ok?
-  for (ev in events) {
+  for (const ev of events) {
+    if (ev.start <= new Date()) continue;
+
     const minsBefore = 10
     const timeMinsBefore = new Date(ev.start.getTime() - minsBefore * 60 * 1000);
     await scheduleEventNotification(

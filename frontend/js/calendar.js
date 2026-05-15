@@ -23,7 +23,7 @@ export async function scheduleEventNotification(uuid, title, body, triggerDate, 
 
   const {invoke} = await import('@tauri-apps/api/core');
 
-  id = notificationId(uuid, offsetMinutes);
+  const id = notificationId(uuid, offsetMinutes);
 
   await invoke('schedule_notification', {
     id, //must be unique per event; reuse the same id to update.
