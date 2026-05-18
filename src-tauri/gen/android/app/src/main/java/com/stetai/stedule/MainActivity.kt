@@ -2,7 +2,6 @@ package com.stetai.stedule
 
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
-import app.tauri.plugin.PluginManager
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -11,8 +10,6 @@ import android.os.Build
 class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    registerPlugin(NotificationSchedulerPlugin::class.java)
-    PluginManager.onActivityCreate(this)
     enableEdgeToEdge()
 
     // Channels required on Android 8+. 

@@ -12,8 +12,6 @@ import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
 
-import app.tauri.annotation.PermissionCallback
-import app.tauri.plugin.PermissionState
 import android.provider.Settings
 import android.net.Uri
 
@@ -83,27 +81,26 @@ class NotificationSchedulerPlugin(private val activity: Activity) : Plugin(activ
         invoke.resolve(JSObject())
     }
 
-    companion object {
-        private const val POST_NOTIF_ALIAS = "postNotifications"
-    }
-
-    // Request runtime permission for Andriod 13+
     @Command
     fun requestNotificationPermission(invoke: Invoke) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            requestPermissions(invoke, arrayOf(
+            val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                activity,
                 android.Manifest.permission.POST_NOTIFICATIONS
-            ), POST_NOTIF_ALIAS)
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+            if (!granted) {
+                androidx.core.app.ActivityCompat.requestPermissions(
+                    activity,
+                    arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
+                    1001
+                )
+            }
+            invoke.resolve(JSObject().put("granted", granted))
         } else {
-            // Granted implicitly on older Android
+            // Implicitly granted on Android < 13
             invoke.resolve(JSObject().put("granted", true))
         }
-    }
-
-    @PermissionCallback
-    fun postNotificationsPermissionCallback(invoke: Invoke) {
-        val granted = getPermissionState(POST_NOTIF_ALIAS) == PermissionState.GRANTED
-        invoke.resolve(JSObject().put("granted", granted))
     }
 
     private fun buildPendingIntent(
