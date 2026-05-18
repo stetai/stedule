@@ -1,5 +1,7 @@
 # Stedule
 
+<img align="left" src="images/logoStedule01.2.png" alt="Stedule Logo" width="100">
+  
 A calendar application that saves its data in a local .ics file.
 
 The goal of this application is to provide an alternative to Google Calendar that does not depend on storing your data on a proprietary cloud. Instead, you have full control over your data, and you choose if and how to sync it.
