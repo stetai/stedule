@@ -15,8 +15,8 @@ export async function refreshNotifs(events) {
   if (!window.__TAURI__) return;
 
   const {invoke} = await import('@tauri-apps/api/core');
-  const granted = await invoke('request_notification_permission', {});
-  if (!granted) return; // abort if user denied
+  const result = await invoke('request_notification_permission', {});
+  if (!result?.granted) return; // abort if user denied
 
   const cutoff = Date.now() + 48 * 60 * 60 * 1000;
 
@@ -69,11 +69,6 @@ export async function scheduleEventNotification(uuid, title, body, triggerDate, 
 export async function cancelEventNotification(id) {
   const { invoke } = await import('@tauri-apps/api/core');
   await invoke('cancel_notification', { id });
-}
-
-async function rescheduleNotification(id, title, body, newTriggerDate) {
-  await cancelEventNotification(id);
-  await scheduleEventNotification(id, title, body, newTriggerDate, 0);
 }
 
 function notificationId(eventId, offsetMinutes) {

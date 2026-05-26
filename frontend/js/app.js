@@ -1079,6 +1079,7 @@ function handleModalSave() {
   closeModal();
   renderCalendar();
   save();
+  refreshNotifs(events);
 }
 
 function handleModalDelete() {
@@ -1091,6 +1092,7 @@ function handleModalDelete() {
   closeModal();
   renderCalendar();
   save();
+  refreshNotifs(events);
 }
 
 // ============================================================

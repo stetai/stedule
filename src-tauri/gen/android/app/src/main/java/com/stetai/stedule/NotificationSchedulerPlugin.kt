@@ -81,6 +81,10 @@ class NotificationSchedulerPlugin(private val activity: Activity) : Plugin(activ
         invoke.resolve(JSObject())
     }
 
+    companion object {
+        private const val POST_NOTIF_REQUEST_CODE = 3521
+    }
+
     @Command
     fun requestNotificationPermission(invoke: Invoke) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -93,7 +97,7 @@ class NotificationSchedulerPlugin(private val activity: Activity) : Plugin(activ
                 androidx.core.app.ActivityCompat.requestPermissions(
                     activity,
                     arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
-                    1001
+                    POST_NOTIF_REQUEST_CODE
                 )
             }
             invoke.resolve(JSObject().put("granted", granted))
