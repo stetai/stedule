@@ -25,9 +25,9 @@ async fn open_calendar(app: tauri::AppHandle) -> Result<Option<String>, String> 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(notification_scheduler::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(notification_scheduler::init())
         .invoke_handler(tauri::generate_handler![open_calendar
             /*, write_calendar*/ // off-loaded to android
             ])

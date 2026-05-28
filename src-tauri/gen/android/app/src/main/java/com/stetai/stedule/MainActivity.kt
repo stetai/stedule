@@ -7,8 +7,13 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 
+import app.tauri.plugin.PluginManager
+import app.tauri.dialog.DialogPlugin
+
 class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
+    //registerPlugin(DialogPlugin::class.java)
+    PluginManager.onActivityCreate(this)
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
 
