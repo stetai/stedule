@@ -16,23 +16,28 @@ export async function refreshNotifs(events) {
 
   const {invoke} = window.__TAURI__.core;
   const result = await invoke('request_notification_permission', {});
-  console.log('Notification permission result:', JSON.stringify(result));
   if (!result?.granted) return; // abort if user denied
 
   const cutoff = Date.now() + 48 * 60 * 60 * 1000;
+  const maxNotifs = 400;
 
   // Cancel the fixed set of offsets for every known event first
   for (const ev of events) {
-    await cancelEventNotification(notificationId(ev.id, 10)); // todo: do this in a general way, not just 10 mins
+    await cancelEventNotification(notificationId(ev.id, 10)); // TODO: do this in a general way, not just 10 mins
   }
 
+  // materialize recurring events
+  events = events.flatMap(ev => {
+    if (ev.rrule) {
+      return materializeOccurrence(ev, new Date());
+    }
+    return [ev];
+  });
+
   for (const ev of events) {
-    console.log("checking event:", ev.title, ev.start, ev.allDay);
     if (!ev.start || ev.allDay) continue; // TODO: support all-day events
     
-    const inWindow = (ev.start.getTime() > Date.now() && ev.start.getTime() < cutoff);
-
-    console.log(ev.title, 'starts at ', ev.start, 'inWindow: ', inWindow);
+    const inWindow = (ev.start.getTime() > Date.now() && ev.start.getTime() < cutoff); // TODO: change to 400 events in the future
 
     if (inWindow) {
 
@@ -41,13 +46,16 @@ export async function refreshNotifs(events) {
 
       await scheduleEventNotification(
         ev.id,
-        ev.title,
-        'Starting in 10 minutes',
+        `${ev.title} starts at ${toTimeInputValue(ev.start)} (in ${minsBefore} minutes)`,
+        ev.description || 'Make sure not to miss it!',
         triggerDate,
         minsBefore
       );
     }
   }
+
+  
+  // TODO: schedule notifs to remind user to open the app one week, three days and one day before the last scheduled notification to refresh notifs
 }
 
 /**
