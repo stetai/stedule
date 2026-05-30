@@ -1,6 +1,9 @@
 use serde::Serialize;
 use tauri::{plugin::{Builder, TauriPlugin}, AppHandle, Manager, Runtime};
 
+#[derive(serde::Deserialize)]
+struct EmptyResponse {}
+
 // These structs are serialised to JSON and sent to Kotlin's parseArgs()
 #[derive(Serialize)]
 struct SchedulePayload {
@@ -57,9 +60,7 @@ pub async fn schedule_notification<R: Runtime>(
     #[cfg(mobile)]
     {
         let plugin = app.state::<MobileNotificationPlugin<R>>();
-        plugin
-            .0
-            .run_mobile_plugin::<()>("scheduleNotification", SchedulePayload {
+        plugin.0.run_mobile_plugin::<EmptyResponse>("scheduleNotification", SchedulePayload {
                 id, title, body, trigger_ms,
             })
             .map_err(|e| e.to_string())?;
@@ -77,7 +78,7 @@ pub async fn cancel_notification<R: Runtime>(
         let plugin = app.state::<MobileNotificationPlugin<R>>();
         plugin
             .0
-            .run_mobile_plugin::<()>("cancelNotification", CancelPayload { id })
+            .run_mobile_plugin::<EmptyResponse>("cancelNotification", CancelPayload { id })
                 .map_err(|e| e.to_string())?;
     }
     Ok(())

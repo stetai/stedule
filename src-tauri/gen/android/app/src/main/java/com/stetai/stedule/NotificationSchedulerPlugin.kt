@@ -15,9 +15,17 @@ import app.tauri.plugin.Plugin
 import android.provider.Settings
 import android.net.Uri
 
-// Data classes Tauri deserialises from the JS payload automatically
-data class ScheduleArgs(val id: Int, val title: String, val body: String, val triggerMs: Long)
-data class CancelArgs(val id: Int)
+// Data classes Tauri deserialises from the JS payload automatically using mutable properties with default values
+class ScheduleArgs{
+    val id: Int = 0
+    val title: String = ""
+    val body: String = "" 
+    val triggerMs: Long = 0L
+}
+
+class CancelArgs{
+    val id: Int = 0
+}
 
 @TauriPlugin
 class NotificationSchedulerPlugin(private val activity: Activity) : Plugin(activity) {
@@ -62,6 +70,7 @@ class NotificationSchedulerPlugin(private val activity: Activity) : Plugin(activ
 
     @Command
     fun cancelNotification(invoke: Invoke) {
+        android.util.Log.d("NotificationScheduler", "Cancel invoked")
         val args    = invoke.parseArgs(CancelArgs::class.java)
         val context = activity.applicationContext
 

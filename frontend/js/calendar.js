@@ -13,9 +13,8 @@ if (!ICAL) {
 
 export async function refreshNotifs(events) {
   if (!window.__TAURI__) return;
-  console.log('Refreshing notifications for', events.length, 'events');
 
-  const {invoke} = window.__TAURI__.core; //await import('@tauri-apps/api/core');
+  const {invoke} = window.__TAURI__.core;
   const result = await invoke('request_notification_permission', {});
   console.log('Notification permission result:', JSON.stringify(result));
   if (!result?.granted) return; // abort if user denied
@@ -28,9 +27,14 @@ export async function refreshNotifs(events) {
   }
 
   for (const ev of events) {
-    if (!ev.start || ev.allDay) continue;
+    console.log("checking event:", ev.title, ev.start, ev.allDay);
+    if (!ev.start || ev.allDay) continue; // TODO: support all-day events
     
-    if (ev.start.getTime() > Date.now() && ev.start.getTime() < cutoff) {
+    const inWindow = (ev.start.getTime() > Date.now() && ev.start.getTime() < cutoff);
+
+    console.log(ev.title, 'starts at ', ev.start, 'inWindow: ', inWindow);
+
+    if (inWindow) {
 
       const minsBefore = 10
       const triggerDate = new Date(ev.start.getTime() - minsBefore * 60 * 1000);
@@ -56,7 +60,7 @@ export async function refreshNotifs(events) {
  */
 export async function scheduleEventNotification(uuid, title, body, triggerDate, offsetMinutes) {
 
-  const {invoke} = window.__TAURI__.core; //await import('@tauri-apps/api/core');
+  const {invoke} = window.__TAURI__.core; 
 
   const id = notificationId(uuid, offsetMinutes);
 
@@ -69,7 +73,8 @@ export async function scheduleEventNotification(uuid, title, body, triggerDate, 
 }
 
 export async function cancelEventNotification(id) {
-  const { invoke } = window.__TAURI__.core; //await import('@tauri-apps/api/core');
+  console.log('Cancelling notification with id:', id);
+  const { invoke } = window.__TAURI__.core; 
   await invoke('cancel_notification', { id });
 }
 
