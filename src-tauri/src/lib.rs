@@ -28,8 +28,11 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(notification_scheduler::init())
-        .invoke_handler(tauri::generate_handler![open_calendar
-            /*, write_calendar*/ // off-loaded to android
+        .invoke_handler(tauri::generate_handler![open_calendar,
+            /*write_calendar, */ // off-loaded to android
+            notification_scheduler::schedule_notification,
+            notification_scheduler::cancel_notification,
+            notification_scheduler::request_notification_permission,
             ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

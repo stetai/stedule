@@ -16,8 +16,8 @@ struct CancelPayload {
     id: i32,
 }
 
-#[derive(serde::Deserialize)]
-struct PermissionResult {
+#[derive(serde::Deserialize, Serialize)]
+pub struct PermissionResult {
     granted: bool,
 }
 
@@ -30,7 +30,7 @@ struct MobileNotificationPlugin<R: Runtime>(tauri::plugin::PluginHandle<R>);
 #[tauri::command]
 pub async fn request_notification_permission<R: Runtime>(
     app: AppHandle<R>,
-) -> Result<bool, String> {
+) -> Result<PermissionResult, String> {
     #[cfg(mobile)]
     {
         let plugin = app.state::<MobileNotificationPlugin<R>>();
@@ -38,10 +38,10 @@ pub async fn request_notification_permission<R: Runtime>(
             .0
             .run_mobile_plugin("requestNotificationPermission", EmptyPayload {})
             .map_err(|e| e.to_string())?;
-        return Ok(result.granted);
+        return Ok(result);
     }
     #[cfg(not(mobile))]
-    Ok(true)
+    Ok(PermissionResult { granted: true })
 }
 
 #[tauri::command]
