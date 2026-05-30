@@ -7,6 +7,92 @@ if (!ICAL) {
   throw new Error("ical.js failed to load — window.ICAL is undefined");
 }
 
+/* #############################################################
+ *   Notifications
+ * ########################################################## */
+
+export async function refreshNotifs(events) {
+  if (!window.__TAURI__) return;
+
+  const {invoke} = window.__TAURI__.core;
+  const result = await invoke('request_notification_permission', {});
+  if (!result?.granted) return; // abort if user denied
+
+  const cutoff = Date.now() + 48 * 60 * 60 * 1000;
+  const maxNotifs = 400;
+
+  // Cancel the fixed set of offsets for every known event first
+  for (const ev of events) {
+    await cancelEventNotification(notificationId(ev.id, 10)); // TODO: do this in a general way, not just 10 mins
+  }
+
+  // materialize recurring events
+  events = events.flatMap(ev => {
+    if (ev.rrule) {
+      return materializeOccurrence(ev, new Date());
+    }
+    return [ev];
+  });
+
+  for (const ev of events) {
+    if (!ev.start || ev.allDay) continue; // TODO: support all-day events
+    
+    const inWindow = (ev.start.getTime() > Date.now() && ev.start.getTime() < cutoff); // TODO: change to 400 events in the future
+
+    if (inWindow) {
+
+      const minsBefore = 10
+      const triggerDate = new Date(ev.start.getTime() - minsBefore * 60 * 1000);
+
+      await scheduleEventNotification(
+        ev.id,
+        `${ev.title} starts at ${toTimeInputValue(ev.start)} (in ${minsBefore} minutes)`,
+        ev.description || 'Make sure not to miss it!',
+        triggerDate,
+        minsBefore
+      );
+    }
+  }
+
+  
+  // TODO: schedule notifs to remind user to open the app one week, three days and one day before the last scheduled notification to refresh notifs
+}
+
+/**
+ * Schedules a notification at a specific Date.
+ * @param {string} uuid: 
+ * @param {string} title
+ * @param {string} body: Notification content
+ * @param {Date} triggerDate: Time of trigger
+ * 
+ */
+export async function scheduleEventNotification(uuid, title, body, triggerDate, offsetMinutes) {
+
+  const {invoke} = window.__TAURI__.core; 
+
+  const id = notificationId(uuid, offsetMinutes);
+
+  await invoke('schedule_notification', {
+    id, //must be unique per event; reuse the same id to update.
+    title,
+    body,
+    triggerMs: triggerDate.getTime(), // Unix ms, matches AlarmManager.RTC_WAKEUP
+  });
+}
+
+export async function cancelEventNotification(id) {
+  console.log('Cancelling notification with id:', id);
+  const { invoke } = window.__TAURI__.core; 
+  await invoke('cancel_notification', { id });
+}
+
+function notificationId(eventId, offsetMinutes) {
+  let h = 0;
+  for (const c of eventId) h = (Math.imul(31, h) + c.charCodeAt(0)) | 0;
+  return (Math.abs(h) % 2_000_000) * 10 + offsetMinutes ;
+}
+
+
 // ============================================================
 // FACTORY FUNCTION
 // ============================================================
@@ -261,8 +347,6 @@ export function toTimeInputValue(date) {
  * @returns {Date}
  */
 export function combineDateAndTime(dateStr, timeStr) {
-  // `new Date("2024-10-15T09:00")` — without a timezone suffix,
-  // the browser interprets this in LOCAL time. That's what we want.
   return new Date(`${dateStr}T${timeStr}`);
 }
 

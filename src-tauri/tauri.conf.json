@@ -3,8 +3,8 @@
   "productName": "Stedule",
   "identifier": "com.stetai.stedule",
   "build": {
-    "beforeDevCommand": "",
-    "beforeBuildCommand": "",
+    "beforeDevCommand": null,
+    "beforeBuildCommand": null,
     "frontendDist": "../frontend"
   },
   "app": {

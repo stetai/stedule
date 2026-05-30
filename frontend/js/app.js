@@ -13,6 +13,7 @@ import {
   eventsOnDay, parseRRule, getAdjWeekday,
   isToday, startOfWeek, addTime,
   toDateInputValue, toTimeInputValue, combineDateAndTime,
+  scheduleEventNotification, refreshNotifs,
 } from './calendar.js';
 
 // ============================================================
@@ -173,6 +174,13 @@ function init() {
   elRepeat.addEventListener('change', updateRepeatUI);
   elRepeatEndType.addEventListener('change', updateRepeatUI);
 
+  //reload all notificatins on app open
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && events.length > 0) {
+      refreshNotifs(events);
+    }
+  });
+
   renderCalendar();
   renderWeekdayHeader(_firstWeekday);
   setStatus('No file open. Click "Open .ics file" to begin.');
@@ -189,9 +197,11 @@ async function handleOpenFile() {
     renderCalendar();
     const saveNote = canWriteInPlace() ? '' : ' · Firefox: saves will download a new file';
     setStatus(`Loaded: ${getFileName()} — ${events.length} event(s)${saveNote}`, 'saved');
+
+    refreshNotifs(events);
+
   } catch (err) {
-    // The File System Access API throws an AbortError when the user
-    // cancels the picker. This is not a real error — don't show an alert.
+    // don't show error if it comes from user input
     if (err.name === 'AbortError') return;
     console.error('Open failed:', err);
     setStatus(`Error opening file: ${err?.message ?? String(err)}`, 'error');
@@ -1069,6 +1079,7 @@ function handleModalSave() {
   closeModal();
   renderCalendar();
   save();
+  refreshNotifs(events);
 }
 
 function handleModalDelete() {
@@ -1081,6 +1092,7 @@ function handleModalDelete() {
   closeModal();
   renderCalendar();
   save();
+  refreshNotifs(events);
 }
 
 // ============================================================
@@ -1108,6 +1120,9 @@ function setStatus(message, type = '') {
 // ------------------------------------------------------------
 // UTILITY
 // ------------------------------------------------------------
+
+// Circumvent hard cap on Android's exact alarms count
+
 
 function weekRangeLabel(date) {
   const monday = startOfWeek(date);
