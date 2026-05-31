@@ -80,12 +80,6 @@ export async function cancelEventNotification(id) {
   await invoke('cancel_notification', { id });
 }
 
-function notificationId(eventId, offsetMinutes) {
-  let h = 0;
-  for (const c of eventId) h = (Math.imul(31, h) + c.charCodeAt(0)) | 0;
-  return (Math.abs(h) % 2_000_000) * 10 + offsetMinutes ;
-}
-
 function notificationId(eventId, offsetMinutes, occurrenceMs = 0) {
   let h = 0;
   for (const c of eventId) h = (Math.imul(31, h) + c.charCodeAt(0)) | 0;
