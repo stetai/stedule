@@ -18,7 +18,7 @@ export async function refreshNotifs(events) {
   const result = await invoke('request_notification_permission', {});
   if (!result?.granted) return; // abort if user denied
 
-  const cutoff = Date.now() + 48 * 60 * 60 * 1000;
+  const cutoff = new Date(Date.now() + 48 * 60 * 60 * 1000);
   const maxNotifs = 400;
 
   // Cancel the fixed set of offsets for every known event first
@@ -26,20 +26,14 @@ export async function refreshNotifs(events) {
     await cancelEventNotification(notificationId(ev.id, 10)); // TODO: do this in a general way, not just 10 mins
   }
 
-  // materialize recurring events
-  events = events.flatMap(ev => {
-    if (ev.rrule) {
-      return materializeOccurrence(ev, new Date());
-    }
-    return [ev];
-  });
-
   for (const ev of events) {
     if (!ev.start || ev.allDay) continue; // TODO: support all-day events
     
-    const inWindow = (ev.start.getTime() > Date.now() && ev.start.getTime() < cutoff); // TODO: change to 400 events in the future
+    const occurrences = ev.rrule 
+      ? occurrencesInWindow(ev, new Date(), cutoff) 
+      : (ev.start > now && ev.start < cutoff ? [ev.start] : []);
 
-    if (inWindow) {
+    for (const occ of occurrences) {// TODO: change to 400 events in the future
 
       const minsBefore = 10
       const triggerDate = new Date(ev.start.getTime() - minsBefore * 60 * 1000);
@@ -90,6 +84,37 @@ function notificationId(eventId, offsetMinutes) {
   let h = 0;
   for (const c of eventId) h = (Math.imul(31, h) + c.charCodeAt(0)) | 0;
   return (Math.abs(h) % 2_000_000) * 10 + offsetMinutes ;
+}
+
+/**
+ * Returns all start times of a recurring event that fall within [windowStart, windowEnd].
+ * Uses the rrule iterator directly, so the dates are exact — not materialized to today.
+ *
+ * @param {object} ev       - Event with a valid ev.rrule string
+ * @param {Date}   windowStart
+ * @param {Date}   windowEnd
+ * @returns {Date[]}
+ */
+function occurrencesInWindow(ev, windowStart, windowEnd) {
+  const rule      = ICAL.Recur.fromString(ev.rrule);
+  const startTime = ICAL.Time.fromJSDate(ev.start);
+  const iter      = rule.iterator(startTime);
+  const results   = [];
+
+  let next;
+  while ((next = iter.next())) {
+    const jsDate = next.toJSDate();
+
+    if (jsDate > windowEnd) break;
+    if (jsDate < windowStart) continue;
+
+    // Skip exdates
+    if (ev.exdates?.some(ex => isSameDay(ex, jsDate))) continue;
+
+    results.push(jsDate);
+  }
+
+  return results;
 }
 
 
