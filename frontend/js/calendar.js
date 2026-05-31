@@ -64,7 +64,7 @@ export async function scheduleEventNotification(uuid, title, body, triggerDate, 
 
   const {invoke} = window.__TAURI__.core; 
 
-  const id = notificationId(uuid, offsetMinutes);
+  const id = notificationId(uuid, offsetMinutes, triggerDate.getTime());
 
   await invoke('schedule_notification', {
     id, //must be unique per event; reuse the same id to update.
@@ -84,6 +84,14 @@ function notificationId(eventId, offsetMinutes) {
   let h = 0;
   for (const c of eventId) h = (Math.imul(31, h) + c.charCodeAt(0)) | 0;
   return (Math.abs(h) % 2_000_000) * 10 + offsetMinutes ;
+}
+
+function notificationId(eventId, offsetMinutes, occurrenceMs = 0) {
+  let h = 0;
+  for (const c of eventId) h = (Math.imul(31, h) + c.charCodeAt(0)) | 0;
+  // Mix in the occurrence time so two occurrences of the same series don't collide
+  h = (Math.imul(31, h) + (occurrenceMs / 60000 | 0)) | 0;
+  return (Math.abs(h) % 2_000_000) * 10 + offsetMinutes;
 }
 
 /**
