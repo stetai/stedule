@@ -99,6 +99,21 @@ pub async fn cancel_notification<R: Runtime>(
     Ok(())
 }
 
+#[tauri::command]
+pub async fn cancel_all_notifications<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<(), String> {
+    #[cfg(mobile)]
+    {
+        let plugin = app.state::<MobileNotificationPlugin<R>>();
+        plugin
+            .0
+            .run_mobile_plugin::<EmptyResponse>("cancelAllNotifications", EmptyPayload {})
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("notification-scheduler")
         .setup(|app, api| {
@@ -117,6 +132,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             cancel_notification,
             request_notification_permission,
             request_battery_optimisation_exemption,
+            cancel_all_notifications,
         ])
         .build()
 }
