@@ -10,6 +10,7 @@ For example, you could use the OSS [Syncthing](https://syncthing.net/).
 
 ## Changelog
 
+- 260531, **v0.2.2-alpha**: major bugfixes for notifications
 - 260530, **v0.2.1-alpha**: Introduce event notifications
 - 260512, **v0.2.0-alpha**: Introduce multi-day events, fix formatting
 - 260508, **v0.1.1-alpha**: Introduce dark mode and quick add, major bugfixes
