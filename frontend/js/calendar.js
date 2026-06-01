@@ -18,7 +18,8 @@ export async function refreshNotifs(events) {
   const result = await invoke('request_notification_permission', {});
   if (!result?.granted) return; // abort if user denied
 
-  const cutoff = new Date(Date.now() + 48 * 60 * 60 * 1000);
+  const now = new Date();
+  const cutoff = new Date(now.getTime() + 48 * 60 * 60 * 1000);
   const maxNotifs = 400;
 
   // Cancel the fixed set of offsets for every known event first
@@ -30,17 +31,19 @@ export async function refreshNotifs(events) {
     if (!ev.start || ev.allDay) continue; // TODO: support all-day events
     
     const occurrences = ev.rrule 
-      ? occurrencesInWindow(ev, new Date(), cutoff) 
+      ? occurrencesInWindow(ev, now, cutoff) 
       : (ev.start > now && ev.start < cutoff ? [ev.start] : []);
 
     for (const occ of occurrences) {// TODO: change to 400 events in the future
 
-      const minsBefore = 10
-      const triggerDate = new Date(ev.start.getTime() - minsBefore * 60 * 1000);
+      const minsBefore = 10;
+      const triggerDate = new Date(occ.getTime() - minsBefore * 60 * 1000);
+
+      if (triggerDate <= now) continue;
 
       await scheduleEventNotification(
         ev.id,
-        `${ev.title} starts at ${toTimeInputValue(ev.start)} (in ${minsBefore} minutes)`,
+        `${ev.title} starts at ${toTimeInputValue(occ)} (in ${minsBefore} minutes)`,
         ev.description || 'Make sure not to miss it!',
         triggerDate,
         minsBefore

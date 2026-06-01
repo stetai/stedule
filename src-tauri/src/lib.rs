@@ -33,6 +33,7 @@ pub fn run() {
             notification_scheduler::schedule_notification,
             notification_scheduler::cancel_notification,
             notification_scheduler::request_notification_permission,
+            notification_scheduler::request_battery_optimisation_exemption,
             ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

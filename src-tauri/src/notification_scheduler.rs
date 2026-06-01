@@ -31,6 +31,21 @@ struct EmptyPayload {}
 struct MobileNotificationPlugin<R: Runtime>(tauri::plugin::PluginHandle<R>);
 
 #[tauri::command]
+pub async fn request_battery_optimisation_exemption<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<(), String> {
+    #[cfg(mobile)]
+    {
+        let plugin = app.state::<MobileNotificationPlugin<R>>();
+        plugin
+            .0
+            .run_mobile_plugin::<EmptyResponse>("requestBatteryOptimisationExemption", EmptyPayload {})
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn request_notification_permission<R: Runtime>(
     app: AppHandle<R>,
 ) -> Result<PermissionResult, String> {
@@ -101,6 +116,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             schedule_notification,
             cancel_notification,
             request_notification_permission,
+            request_battery_optimisation_exemption,
         ])
         .build()
 }
