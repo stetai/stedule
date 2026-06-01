@@ -18,7 +18,8 @@ export async function refreshNotifs(events) {
   const result = await invoke('request_notification_permission', {});
   if (!result?.granted) return; // abort if user denied
 
-  const cutoff = Date.now() + 48 * 60 * 60 * 1000;
+  const now = new Date();
+  const cutoff = new Date(now.getTime() + 48 * 60 * 60 * 1000);
   const maxNotifs = 400;
 
   // Cancel the fixed set of offsets for every known event first
@@ -26,27 +27,23 @@ export async function refreshNotifs(events) {
     await cancelEventNotification(notificationId(ev.id, 10)); // TODO: do this in a general way, not just 10 mins
   }
 
-  // materialize recurring events
-  events = events.flatMap(ev => {
-    if (ev.rrule) {
-      return materializeOccurrence(ev, new Date());
-    }
-    return [ev];
-  });
-
   for (const ev of events) {
     if (!ev.start || ev.allDay) continue; // TODO: support all-day events
     
-    const inWindow = (ev.start.getTime() > Date.now() && ev.start.getTime() < cutoff); // TODO: change to 400 events in the future
+    const occurrences = ev.rrule 
+      ? occurrencesInWindow(ev, now, cutoff) 
+      : (ev.start > now && ev.start < cutoff ? [ev.start] : []);
 
-    if (inWindow) {
+    for (const occ of occurrences) {// TODO: change to 400 events in the future
 
-      const minsBefore = 10
-      const triggerDate = new Date(ev.start.getTime() - minsBefore * 60 * 1000);
+      const minsBefore = 10;
+      const triggerDate = new Date(occ.getTime() - minsBefore * 60 * 1000);
+
+      if (triggerDate <= now) continue;
 
       await scheduleEventNotification(
         ev.id,
-        `${ev.title} starts at ${toTimeInputValue(ev.start)} (in ${minsBefore} minutes)`,
+        `${ev.title} starts at ${toTimeInputValue(occ)} (in ${minsBefore} minutes)`,
         ev.description || 'Make sure not to miss it!',
         triggerDate,
         minsBefore
@@ -70,7 +67,7 @@ export async function scheduleEventNotification(uuid, title, body, triggerDate, 
 
   const {invoke} = window.__TAURI__.core; 
 
-  const id = notificationId(uuid, offsetMinutes);
+  const id = notificationId(uuid, offsetMinutes, triggerDate.getTime());
 
   await invoke('schedule_notification', {
     id, //must be unique per event; reuse the same id to update.
@@ -86,10 +83,43 @@ export async function cancelEventNotification(id) {
   await invoke('cancel_notification', { id });
 }
 
-function notificationId(eventId, offsetMinutes) {
+function notificationId(eventId, offsetMinutes, occurrenceMs = 0) {
   let h = 0;
   for (const c of eventId) h = (Math.imul(31, h) + c.charCodeAt(0)) | 0;
-  return (Math.abs(h) % 2_000_000) * 10 + offsetMinutes ;
+  // Mix in the occurrence time so two occurrences of the same series don't collide
+  h = (Math.imul(31, h) + (occurrenceMs / 60000 | 0)) | 0;
+  return (Math.abs(h) % 2_000_000) * 10 + offsetMinutes;
+}
+
+/**
+ * Returns all start times of a recurring event that fall within [windowStart, windowEnd].
+ * Uses the rrule iterator directly, so the dates are exact — not materialized to today.
+ *
+ * @param {object} ev       - Event with a valid ev.rrule string
+ * @param {Date}   windowStart
+ * @param {Date}   windowEnd
+ * @returns {Date[]}
+ */
+function occurrencesInWindow(ev, windowStart, windowEnd) {
+  const rule      = ICAL.Recur.fromString(ev.rrule);
+  const startTime = ICAL.Time.fromJSDate(ev.start);
+  const iter      = rule.iterator(startTime);
+  const results   = [];
+
+  let next;
+  while ((next = iter.next())) {
+    const jsDate = next.toJSDate();
+
+    if (jsDate > windowEnd) break;
+    if (jsDate < windowStart) continue;
+
+    // Skip exdates
+    if (ev.exdates?.some(ex => isSameDay(ex, jsDate))) continue;
+
+    results.push(jsDate);
+  }
+
+  return results;
 }
 
 

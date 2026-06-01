@@ -82,6 +82,10 @@ const elQuickSave  = $('quick-add-save');
 // INITIALIZATION
 // ============================================================
 
+if (window.__TAURI__) {
+    const { invoke } = window.__TAURI__.core;
+    invoke('request_battery_optimisation_exemption').catch(console.error);
+}
 
 document.addEventListener('DOMContentLoaded', init);
 
