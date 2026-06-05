@@ -22,10 +22,7 @@ export async function refreshNotifs(events) {
   const cutoff = new Date(now.getTime() + 48 * 60 * 60 * 1000);
   const maxNotifs = 400;
 
-  // Cancel the fixed set of offsets for every known event first
-  for (const ev of events) {
-    await cancelEventNotification(notificationId(ev.id, 10)); // TODO: do this in a general way, not just 10 mins
-  }
+  await invoke('cancel_all_notifications', {});
 
   for (const ev of events) {
     if (!ev.start || ev.allDay) continue; // TODO: support all-day events
