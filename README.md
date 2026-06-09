@@ -28,6 +28,8 @@ Download the latest version from [the releases](https://github.com/stetai/stedul
 
 You may need to allow installation from unknown sources.
 
+Furthermore, you may need to disable Play Protect in the Play Store, as the scanning prompt might bug and prevent the installation from finishing or cancelling.
+
 ### Try it out on localhost
 
 Run the following line in a terminal from this folder (stedule/).
