@@ -10,10 +10,11 @@ For example, you could use the OSS [Syncthing](https://syncthing.net/).
 
 ## Changelog
 
-- 260531, **v0.2.2-alpha**: major bugfixes for notifications
+- 260611, **v0.2.3-alpha**: Prevent bad user input; time input UX improvement; notifications bugfix
+- 260531, **v0.2.2-alpha**: Major bugfixes for notifications
 - 260530, **v0.2.1-alpha**: Introduce event notifications
-- 260512, **v0.2.0-alpha**: Introduce multi-day events, fix formatting
-- 260508, **v0.1.1-alpha**: Introduce dark mode and quick add, major bugfixes
+- 260512, **v0.2.0-alpha**: Introduce multi-day events; fix formatting
+- 260508, **v0.1.1-alpha**: Introduce dark mode and quick add; major bugfixes
 - 260506, **v0.1.0-alpha**: First usable Android version
 - 260505, **v0.0.4-alpha**: Successful Tauri test on Android
 - 260503, **v0.0.3-alpha**: Usable functionality
