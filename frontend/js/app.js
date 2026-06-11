@@ -175,12 +175,16 @@ function init() {
     }
   });
 
-  elStartDate.addEventListener('focus', rememberDuration);
-  elStartTime.addEventListener('focus', rememberDuration);
-
-
   elStartDate.addEventListener('change', shiftEndWithStart);
   elStartTime.addEventListener('change', shiftEndWithStart);
+
+  // reset remembered duration on manual change
+  elEndTime.addEventListener('change', () => {
+    _modalDuration = null; 
+  });
+  elEndDate.addEventListener('change', () => {
+    _modalDuration = null;
+  });
 
   elRepeat.addEventListener('change', updateRepeatUI);
   elRepeatEndType.addEventListener('change', updateRepeatUI);
@@ -907,6 +911,8 @@ function openNewEventModal(date, title='', end=null) {
 
   // Focus the title field so the user can start typing immediately.
   elTitle.focus();
+
+  rememberDuration(); // remember duration for editing
 }
 
 function updateRepeatUI() {
@@ -992,6 +998,8 @@ function openEditEventModal(ev) {
 
   updateRepeatUI();
   openModal();
+
+  rememberDuration(); // remember duration for editing
 }
 
 function openModal() {
@@ -1155,12 +1163,12 @@ function rememberDuration() {
 
 function shiftEndWithStart() {
   if (!_modalDuration) return;
-  
+
   const start = combineDateAndTime(elStartDate.value, elStartTime.value);
   if (!start) return;
 
   const newEnd = new Date(start.getTime() + _modalDuration);
-  
+
   elEndDate.value = toDateInputValue(newEnd);
   elEndTime.value = toTimeInputValue(newEnd);
 }
