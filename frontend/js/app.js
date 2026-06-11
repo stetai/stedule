@@ -175,6 +175,13 @@ function init() {
     }
   });
 
+  elStartDate.addEventListener('focus', rememberDuration);
+  elStartTime.addEventListener('focus', rememberDuration);
+
+
+  elStartDate.addEventListener('change', shiftEndWithStart);
+  elStartTime.addEventListener('change', shiftEndWithStart);
+
   elRepeat.addEventListener('change', updateRepeatUI);
   elRepeatEndType.addEventListener('change', updateRepeatUI);
 
@@ -1134,8 +1141,31 @@ function setStatus(message, type = '') {
 // UTILITY
 // ------------------------------------------------------------
 
-// Circumvent hard cap on Android's exact alarms count
+// keep event duration when changing start time in the modal
+let _modalDuration = null;
 
+function rememberDuration() {
+  const start = combineDateAndTime(elStartDate.value, elStartTime.value);
+  const end = combineDateAndTime(elEndDate.value, elEndTime.value);
+
+  if (start && end) {
+    _modalDuration = end - start;
+  }
+}
+
+function shiftEndWithStart() {
+  if (!_modalDuration) return;
+  
+  const start = combineDateAndTime(elStartDate.value, elStartTime.value);
+  if (!start) return;
+
+  const newEnd = new Date(start.getTime() + _modalDuration);
+  
+  elEndDate.value = toDateInputValue(newEnd);
+  elEndTime.value = toTimeInputValue(newEnd);
+}
+
+// formating
 
 function weekRangeLabel(date) {
   const monday = startOfWeek(date);
