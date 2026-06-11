@@ -141,5 +141,27 @@ class NotificationSchedulerPlugin(private val activity: Activity) : Plugin(activ
         activity.startActivity(intent)
         invoke.resolve(JSObject())
     }
+    
+    @Command
+    fun cancelAllNotifications(invoke: Invoke) {
+        val context      = activity.applicationContext
+        val prefs        = context.getSharedPreferences("scheduled_notifs", Context.MODE_PRIVATE)
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+        for ((key, value) in prefs.all) {
+            val id = (value as? String)?.split("|")?.firstOrNull()?.toIntOrNull() ?: continue
+
+            val pending = PendingIntent.getBroadcast(
+                context,
+                id,
+                Intent(context, NotificationReceiver::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(pending)
+        }
+
+        prefs.edit().clear().apply()
+        invoke.resolve(JSObject())
+    }
 
 }
