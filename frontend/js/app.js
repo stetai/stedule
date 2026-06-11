@@ -861,6 +861,7 @@ function handleQuickSave() {
   closeQuickAdd();
   renderCalendar();
   save();
+  refreshNotifs();
 }
 
 // ============================================================
