@@ -24,6 +24,8 @@ export async function refreshNotifs(events) {
   const cutoff = new Date(now.getTime() + 48 * 60 * 60 * 1000);
   const maxNotifs = 400;
 
+  await invoke('cancel_all_notifications', {});
+
   for (const ev of events) {
     if (!ev.start || ev.allDay) continue; // TODO: support all-day events
     

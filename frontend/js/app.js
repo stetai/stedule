@@ -861,6 +861,7 @@ function handleQuickSave() {
   closeQuickAdd();
   renderCalendar();
   save();
+  refreshNotifs();
 }
 
 // ============================================================
@@ -942,7 +943,7 @@ function openEditEventModal(ev) {
   elDeleteBtn.style.display = '';
 
   elTitle.value     = ev.title;
-  elStartDate.value      = toDateInputValue(ev.seriesStart ?? ev.start);
+  elStartDate.value = toDateInputValue(ev.seriesStart ?? ev.start);
   elStartTime.value = toTimeInputValue(ev.seriesStart ?? ev.start);
   const end  = ev.seriesStart ? 
     new Date(ev.seriesStart.getTime() + (ev.end - ev.start)) :
