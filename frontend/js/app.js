@@ -1009,14 +1009,22 @@ function handleModalSave() {
   const title = elTitle.value.trim();
 
   if (!title) {
-    elTitle.focus();
-    elTitle.style.borderColor = 'var(--color-danger)';
-    setTimeout(() => { elTitle.style.borderColor = ''; }, 2000);
+    formError(elTitle);
     return;
   }
 
   const start = combineDateAndTime(elStartDate.value, elStartTime.value);
   const end   = combineDateAndTime(elEndDate.value, elEndTime.value);
+
+  if (end < start) {
+    if (elStartDate.value === elEndDate.value) {
+      formError(elEndTime);
+      return;
+    } else {
+      formError(elEndDate);
+      return;
+    }
+  }
 
   const repeat = elRepeat.value || null;
   let rrule = null;
@@ -1213,4 +1221,14 @@ function layoutDayEvents(events) {
       cols: colCount
     }
   });
+}
+
+// UI utilities
+
+function formError(element) {
+    element.focus();
+    element.style.borderColor = 'var(--color-danger)';
+    element.style.color = 'var(--color-danger)';
+    setTimeout(() => { element.style.borderColor = ''; }, 2000);
+    setTimeout(() => { element.style.color = ''; }, 2000);
 }
