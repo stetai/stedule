@@ -1167,15 +1167,6 @@ function shiftEndWithStart() {
 
 // formating
 
-function weekRangeLabel(date) {
-  const monday = startOfWeek(date);
-  const sunday = new Date(monday);
-  sunday.setDate(sunday.getDate() + 6);
-
-  const fmt = { month: 'short', day: 'numeric' };
-  return `${monday.toLocaleDateString('default', fmt)} - ${sunday.toLocaleDateString('default', fmt)}, ${sunday.getFullYear()}`;
-}
-
 /**
  * Formats a Date as a short time string, e.g. "9:30 AM".
  * Used inside week-view event chips.
@@ -1189,7 +1180,11 @@ function formatDate(date) {
   if (!date) return '';
   return date.toLocaleDateString('default', {
       weekday: 'short', year: 'numeric', month: 'long', day: 'numeric',
-    });}
+    }
+  );
+}
+
+// UI utilities
 
 function layoutDayEvents(events) {
 
@@ -1253,7 +1248,14 @@ function layoutDayEvents(events) {
   });
 }
 
-// UI utilities
+function weekRangeLabel(date) {
+  const monday = startOfWeek(date);
+  const sunday = new Date(monday);
+  sunday.setDate(sunday.getDate() + 6);
+
+  const fmt = { month: 'short', day: 'numeric' };
+  return `${monday.toLocaleDateString('default', fmt)} - ${sunday.toLocaleDateString('default', fmt)}, ${sunday.getFullYear()}`;
+}
 
 function formError(element) {
     element.focus();
