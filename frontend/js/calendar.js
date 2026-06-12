@@ -113,11 +113,14 @@ function occurrencesInWindow(ev, windowStart, windowEnd) {
   const iter      = rule.iterator(startTime);
   const results   = [];
 
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+  const breakGuard = new Date(windowEnd.getTime() + 14 * MS_PER_DAY);
+
   let next;
   while ((next = iter.next())) {
     const jsDate = next.toJSDate();
 
-    if (jsDate > windowEnd) break;
+    if (jsDate > breakGuard) break;
 
     // Skip exdates
     if (ev.exdates?.some(ex => isSameDay(ex, jsDate))) continue;
@@ -129,7 +132,7 @@ function occurrencesInWindow(ev, windowStart, windowEnd) {
 
     const start = exception?.start ? new Date(exception.start) : jsDate;
 
-    if (start > windowEnd) continue;
+    if (start >= windowEnd) continue;
     if (start < windowStart) continue;
 
     results.push(start);
@@ -317,14 +320,38 @@ export function eventsOnDay(events, date) {
       continue;
     }
 
-    const dateKey = toDateInputValue(date);
+    // Scan all exceptions for ones whose resolved start falls on this day.
+    if (ev.exceptions) {
+      for (const [originalKey, exception] of Object.entries(ev.exceptions)) {
+        if (exception.deleted) continue;
+        if (!exception.start) continue; 
+ 
+        const resolvedStart = new Date(exception.start);
+        if (!isSameDay(resolvedStart, date)) continue;
 
-    if (ev.exceptions?.[dateKey] && !ev.exceptions[dateKey].deleted) {
+        const originalDate = new Date(originalKey + 'T00:00:00');
+        const occurrence = materializeOccurrence(ev, originalDate);
+        if (occurrence) result.push(occurrence);
+      }
+    }
+
+    // rrule occurrence on this day
+    const dateKey = toDateInputValue(date);
+    const exceptionOnThisDay = ev.exceptions?.[dateKey];
+ 
+    if (exceptionOnThisDay) {
+      if (exceptionOnThisDay.deleted) continue;
+ 
+      if (exceptionOnThisDay.start &&
+          !isSameDay(new Date(exceptionOnThisDay.start), date)) continue;
+ 
+      // Time-only shift (same day): materialize normally.
       const occurrence = materializeOccurrence(ev, date);
       if (occurrence) result.push(occurrence);
       continue;
     }
 
+    // No exception entry for this day — check the plain RRULE.
     if (recursOnDay(ev, date)) {
       const occurrence = materializeOccurrence(ev, date);
       if (occurrence) result.push(occurrence);
@@ -459,7 +486,11 @@ function recursOnDay(ev, date) {
       if (ev.exdates?.some(d => isSameDay(d, jsStart))) continue;
 
       const originalDate = toDateInputValue(jsStart);
-      if (ev.exceptions?.[originalDate]?.deleted) continue;
+      const exception = ev.exceptions?.[originalDate];
+      if (ev.exception?.deleted) continue;
+
+      // exception moved to another day
+      if (exception?.start && !isSameDay(new Date(exception.start), jsStart)) continue;
 
       return true;
     }
