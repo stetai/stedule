@@ -27,9 +27,16 @@ export async function refreshNotifs(events) {
   for (const ev of events) {
     if (!ev.start || ev.allDay) continue; // TODO: support all-day events
     
+    const xptn = ev.exceptions
+    console.log(`exceptions: ${xptn}`);
+
     const occurrences = ev.rrule 
       ? occurrencesInWindow(ev, now, cutoff) 
       : (ev.start > now && ev.start < cutoff ? [ev.start] : []);
+
+    if (xptn) {
+      console.log(`occurrences: ${occurrences}`);
+    }
 
     for (const occ of occurrences) {// TODO: change to 400 events in the future
 
@@ -66,6 +73,10 @@ export async function scheduleEventNotification(uuid, title, body, triggerDate, 
 
   const id = notificationId(uuid, offsetMinutes, triggerDate.getTime());
 
+  if (triggerDate.getDate() === new Date().getDate()) {
+    console.log(`Scheduled notification for event "${title}" at ${triggerDate.toLocaleTimeString()}`);
+  }
+
   await invoke('schedule_notification', {
     id, //must be unique per event; reuse the same id to update.
     title,
@@ -75,7 +86,6 @@ export async function scheduleEventNotification(uuid, title, body, triggerDate, 
 }
 
 export async function cancelEventNotification(id) {
-  console.log('Cancelling notification with id:', id);
   const { invoke } = window.__TAURI__.core; 
   await invoke('cancel_notification', { id });
 }
@@ -108,12 +118,21 @@ function occurrencesInWindow(ev, windowStart, windowEnd) {
     const jsDate = next.toJSDate();
 
     if (jsDate > windowEnd) break;
-    if (jsDate < windowStart) continue;
 
     // Skip exdates
     if (ev.exdates?.some(ex => isSameDay(ex, jsDate))) continue;
 
-    results.push(jsDate);
+    const key = toDateInputValue(jsDate);
+    const exception = ev.exceptions?.[key];
+
+    if (exception?.deleted) continue;
+
+    const start = exception?.start ? new Date(exception.start) : jsDate;
+
+    if (start > windowEnd) continue;
+    if (start < windowStart) continue;
+
+    results.push(start);
   }
 
   return results;
@@ -300,9 +319,6 @@ export function eventsOnDay(events, date) {
 
     const dateKey = toDateInputValue(date);
 
-    console.log("exceptions:", ev.exceptions);
-    console.log("dateKey:", dateKey);
-    
     if (ev.exceptions?.[dateKey] && !ev.exceptions[dateKey].deleted) {
       const occurrence = materializeOccurrence(ev, date);
       if (occurrence) result.push(occurrence);
