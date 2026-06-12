@@ -72,15 +72,7 @@
 }
 
 /* ============================================================
-   CSS RESET
-   Browsers apply their own default margins, paddings, and box
-   models. A reset zeroes these out so you start from a blank
-   slate. The most important rule here is box-sizing: border-box.
-
-   WHY border-box: By default (content-box), if you set
-   width:200px and padding:10px, the element is actually 220px
-   wide. border-box includes padding in the width you declare,
-   which is almost always what you intuitively expect.
+   CSS RESET: Reset zeroes browser's defaults out
 ============================================================ */
 
 *, *::before, *::after {
@@ -101,7 +93,7 @@ body {
   color: var(--color-text);
   display: flex;
   flex-direction: column;
-  height: 100dvh; /* vh = viewport height — 100vh means "full screen height" */
+  height: 100dvh; /* vh = viewport height. 100vh means "full screen height" */
   overflow: hidden;
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
@@ -165,8 +157,6 @@ select {
 
 /* ============================================================
    BUTTONS
-   A small button system. Classes compose: btn + btn-primary,
-   or btn + btn-ghost, etc. This avoids duplicating base styles.
 ============================================================ */
 
 .btn {
@@ -351,8 +341,6 @@ select {
 
 /* ============================================================
    MODAL
-   The overlay covers the full screen. The modal is centered
-   inside it using flexbox.
 ============================================================ */
 
 .modal-overlay {
@@ -599,6 +587,30 @@ select:focus {
 
 .weekday-picker input {
   accent-color: var(--color-accent);
+}
+
+/* ============================================================
+   scope dialog
+============================================================ */
+
+#scope-overlay {
+  z-index: 110;
+}
+ 
+.scope-dialog {
+  width: min(360px, 90vw);
+}
+ 
+.scope-description {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+ 
+.scope-dialog-footer {
+  gap: var(--space-sm);
+  /* Override the default space-between to cluster buttons on the right */
+  justify-content: flex-end;
 }
 
 /* ============================================================

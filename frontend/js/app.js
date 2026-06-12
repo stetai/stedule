@@ -25,6 +25,8 @@ let currentDate    = new Date();  // The date the calendar is currently showing
 let currentView    = 'week';      // 'month' | 'week' | 'day' (week/day = future work)
 let editingId      = null;        // ID of the event currently in the modal, or null
 
+let editingOriginalDate = null;   // (YYYY-MM-DD) which occurrence of a recurring event to edit
+
 // event draft
 let draftEvent     = null;        // Event that is being worked on in quickadd
 let draftOutlineEl = null;        // Outline of quickadd
@@ -77,6 +79,9 @@ const elQuickTitle = $('quick-add-title');
 const elQuickTime  = $('quick-add-time');
 const elQuickOpen  = $('quick-add-open');
 const elQuickSave  = $('quick-add-save');
+
+const elScopeOverlay = $('scope-overlay');
+const elScopeDesc    = $('scope-description');
 
 // ============================================================
 // INITIALIZATION
@@ -156,6 +161,11 @@ function init() {
   $('modal-close').addEventListener('click',  closeModal);
   $('modal-save').addEventListener('click',   handleModalSave);
   $('modal-delete').addEventListener('click', handleModalDelete);
+
+  // Scope dialog buttons
+  $('scope-cancel').addEventListener('click', closeScopeDialog);
+  $('scope-this').addEventListener('click',   () => commitSave('this'));
+  $('scope-all').addEventListener('click',    () => commitSave('all'));
 
   // Close modal when clicking the dark overlay (outside the modal box)
   elOverlay.addEventListener('click', (e) => {
@@ -872,7 +882,7 @@ function handleQuickSave() {
   closeQuickAdd();
   renderCalendar();
   save();
-  refreshNotifs();
+  refreshNotifs(events);
 }
 
 // ============================================================
@@ -951,16 +961,16 @@ function updateRepeatUI() {
 }
 
 function openEditEventModal(ev) {
-  editingId = ev.id;
+  editingId = ev.masterId ?? ev.id; // master's ID for recurring events
+  editingOriginalDate = ev.originalDate ?? null; // null for non-recurring
+
   elModalTitle.textContent = 'Edit Event';
   elDeleteBtn.style.display = '';
 
   elTitle.value     = ev.title;
-  elStartDate.value = toDateInputValue(ev.seriesStart ?? ev.start);
-  elStartTime.value = toTimeInputValue(ev.seriesStart ?? ev.start);
-  const end  = ev.seriesStart ? 
-    new Date(ev.seriesStart.getTime() + (ev.end - ev.start)) :
-    (ev.end ?? ev.start);
+  elStartDate.value = toDateInputValue(ev.start);
+  elStartTime.value = toTimeInputValue(ev.start);
+  const end  = ev.end ?? ev.start;
   elEndDate.value   = toDateInputValue(end);
   elEndTime.value   = toTimeInputValue(end);
   elDesc.value      = ev.description ?? '';
@@ -1018,6 +1028,7 @@ function closeModal() {
   elOverlay.classList.remove('open');
   elOverlay.setAttribute('aria-hidden', 'true');
   editingId = null;
+  editingOriginalDate = null;
 }
 
 function handleModalSave() {
@@ -1078,31 +1089,36 @@ function handleModalSave() {
     rrule = parts.join(";");
   }
 
-  if (editingId) {
-    // Update existing event: find it and replace its fields.
-    // events.findIndex() returns the index of the first matching element,
-    // or -1 if not found.
-    const idx = events.findIndex(ev => ev.id === editingId);
-    if (idx !== -1) {
-      // Create a NEW object with old properties, then overwrite listed ones
-      // "Update an object" without mutating the original.
-      events[idx] = { ...events[idx], title, start, end,
-                      description: elDesc.value,
-                      color: elColor.value,
-                      rrule };
-    }
-    // todo: handle not found case
-  } else {
-    // New event
-    events.push(createEvent({
-      title,
-      start,
-      end,
-      description: elDesc.value,
-      color: elColor.value,
-      rrule,
-    }));
+  if (editingId && editingOriginalDate){
+    _pendingSave = { title, start, end, description: elDesc.value, color: elColor.value, rrule };
+    elScopeDesc.textContent = 
+      'This is a recurring event. Do you want to apply the changes to just this occurrence, or all occurrences?';
+    $('scope-this').textContent = 'This event';
+    $('scope-all').textContent = 'All events';
+    openScopeDialog();
+    return; // wait for scope choice before saving
   }
+
+  // Non-recurring
+  _commitSaveNow({title, start, end, description: elDesc.value, color: elColor.value, rrule}, 'all');
+}
+
+function handleModalDelete() {
+  if (!editingId) return;
+
+  if (editingOriginalDate) {
+    _pendingSave = null; // no changes to save, just delete
+    elScopeDesc.textContent = 
+      'This is a recurring event. Do you want to delete just this occurrence, or all occurrences?';
+    $('scope-this').textContent = 'This event';
+    $('scope-all').textContent = 'All events';
+    openScopeDialog();
+    return;
+  }
+
+  if (!confirm('Delete this event?')) return;
+
+  events = events.filter(ev => ev.id !== editingId);
 
   closeModal();
   renderCalendar();
@@ -1110,13 +1126,115 @@ function handleModalSave() {
   refreshNotifs(events);
 }
 
-function handleModalDelete() {
-  if (!editingId) return;
+// ============================================================
+// SCOPE DIALOG HELPERS
+// ============================================================
+ 
+// Temporary holding area for the field values collected by handleModalSave() before the user has confirmed scope. Null when the action is a delete.
+let _pendingSave = null;
+ 
+function openScopeDialog() {
+  elScopeOverlay.classList.add('open');
+  elScopeOverlay.setAttribute('aria-hidden', 'false');
+}
+ 
+function closeScopeDialog() {
+  elScopeOverlay.classList.remove('open');
+  elScopeOverlay.setAttribute('aria-hidden', 'true');
+}
+ 
+/**
+ * Called when the user picks a scope in the scope dialog.
+ * @param {'this'|'all'} scope
+ */
+function commitSave(scope) {
+  closeScopeDialog();
+ 
+  // --- DELETE path ---
+  if (_pendingSave === null) {
+    if (scope === 'this') {
+      // Mark this single occurrence as deleted in the master's exceptions map.
+      const idx = events.findIndex(ev => ev.id === editingId);
+      if (idx !== -1) {
+        events[idx] = {
+          ...events[idx],
+          exceptions: {
+            ...events[idx].exceptions,
+            [editingOriginalDate]: { deleted: true }
+          }
+        };
+      }
+    } else {
+      // Delete the entire series (master + all occurrences)
+      if (!confirm('Delete all events in this series?')) return;
+      events = events.filter(ev => ev.id !== editingId);
+    }
 
-  if (!confirm('Delete this event?')) return;
-
-  events = events.filter(ev => ev.id !== editingId);
-
+    _pendingSave = null;
+ 
+    closeModal();
+    renderCalendar();
+    save();
+    refreshNotifs(events);
+    return;
+  }
+ 
+  // --- SAVE path ---
+  _commitSaveNow(_pendingSave, scope);
+}
+ 
+/**
+ * Applies a validated set of field values to the events array.
+ * @param {object} fields  - { title, start, end, description, color, rrule }
+ * @param {'this'|'all'} scope
+ */
+function _commitSaveNow(fields, scope) {
+  const { title, start, end, description, color, rrule } = fields;
+ 
+  if (editingId) {
+    const idx = events.findIndex(ev => ev.id === editingId);
+ 
+    if (idx !== -1) {
+      if (scope === 'this' && editingOriginalDate) {
+        // Write a sparse exception
+        // JSON serialization in X-EXCEPTIONS.
+        const master = events[idx];
+        const exception = {};
+ 
+        if (title       !== master.title)       exception.title       = title;
+        if (description !== master.description) exception.description = description;
+        if (color       !== master.color)       exception.color       = color;
+ 
+        // Compare times by value, not reference
+        const masterOccStart = (() => {
+          const d = new Date(new Date(editingOriginalDate + 'T00:00:00'));
+          d.setHours(master.start.getHours(), master.start.getMinutes(), 0, 0);
+          return d;
+        })();
+        const masterDuration = (master.end ?? master.start) - master.start;
+        const masterOccEnd   = new Date(masterOccStart.getTime() + masterDuration);
+ 
+        if (start.getTime() !== masterOccStart.getTime()) exception.start = start;
+        if (end.getTime()   !== masterOccEnd.getTime())   exception.end   = end;
+ 
+        events[idx] = {
+          ...master,
+          exceptions: {
+            ...master.exceptions,
+            [editingOriginalDate]: exception
+          }
+        };
+      } else {
+        // Update the master. 
+        // Existing per-occurrence exceptions are preserved.
+        events[idx] = { ...events[idx], title, start, end, description, color, rrule };
+      }
+    }
+  } else {
+    // Brand new event
+    events.push(createEvent({ title, start, end, description, color, rrule }));
+  }
+ 
   closeModal();
   renderCalendar();
   save();
@@ -1149,7 +1267,8 @@ function setStatus(message, type = '') {
 // UTILITY
 // ------------------------------------------------------------
 
-// keep event duration when changing start time in the modal
+// keep event duration when changing start time in the modal --
+
 let _modalDuration = null;
 
 function rememberDuration() {
@@ -1173,7 +1292,7 @@ function shiftEndWithStart() {
   elEndTime.value = toTimeInputValue(newEnd);
 }
 
-// formating
+// formating --------------------------------------------------
 
 /**
  * Formats a Date as a short time string, e.g. "9:30 AM".
@@ -1192,7 +1311,7 @@ function formatDate(date) {
   );
 }
 
-// UI utilities
+// UI utilities -----------------------------------------------
 
 function layoutDayEvents(events) {
 

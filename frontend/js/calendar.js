@@ -24,8 +24,6 @@ export async function refreshNotifs(events) {
   const cutoff = new Date(now.getTime() + 48 * 60 * 60 * 1000);
   const maxNotifs = 400;
 
-  await invoke('cancel_all_notifications', {});
-
   for (const ev of events) {
     if (!ev.start || ev.allDay) continue; // TODO: support all-day events
     
@@ -149,7 +147,8 @@ export function createEvent({ title, start, end, description = '', color = '#A80
     color,
     allDay,
     rrule,
-    exdates: []
+    exdates: [],
+    exceptions: {} // sparse map of per-occurrence overrides, keyed by YYYY-MM-DD
   };
 }
 
@@ -175,6 +174,8 @@ export function parseICS(rawText) {
     const rruleProp = v.getFirstPropertyValue('rrule');
     const exdateProps = v.getAllProperties('exdate');
 
+    const xExceptions = v.getFirstPropertyValue('x-exceptions');
+
     return {
       id: ev.uid ?? crypto.randomUUID(),
       title: ev.summary ?? '(No title)',
@@ -184,7 +185,8 @@ export function parseICS(rawText) {
       color: v.getFirstPropertyValue('color') ?? '#A80808',
       allDay: ev.startDate?.isDate ?? false,
       rrule: rruleProp ? rruleProp.toString() : null,
-      exdates: exdateProps.map(p => p.getFirstValue().toJSDate())
+      exdates: exdateProps.map(p => p.getFirstValue().toJSDate()),
+      exceptions: xExceptions ? JSON.parse(xExceptions) : {}
     };
   });
 }
@@ -247,6 +249,13 @@ export function serializeICS(events) {
       }
     }
 
+    if (ev.exceptions && Object.keys(ev.exceptions).length > 0) {
+      vevent.addPropertyWithValue(
+        'x-exceptions',
+        JSON.stringify(ev.exceptions)
+      );
+    }
+
     vcal.addSubcomponent(vevent);
   }
 
@@ -289,8 +298,20 @@ export function eventsOnDay(events, date) {
       continue;
     }
 
+    const dateKey = toDateInputValue(date);
+
+    console.log("exceptions:", ev.exceptions);
+    console.log("dateKey:", dateKey);
+    
+    if (ev.exceptions?.[dateKey] && !ev.exceptions[dateKey].deleted) {
+      const occurrence = materializeOccurrence(ev, date);
+      if (occurrence) result.push(occurrence);
+      continue;
+    }
+
     if (recursOnDay(ev, date)) {
-      result.push(materializeOccurrence(ev, date));
+      const occurrence = materializeOccurrence(ev, date);
+      if (occurrence) result.push(occurrence);
     }
   }
 
@@ -404,6 +425,7 @@ function recursOnDay(ev, date) {
   const startTime = ICAL.Time.fromJSDate(ev.start);
 
   const iter = rule.iterator(startTime);
+  //iter.advanceTo(ICAL.Time.fromJSDate(startOfDay(date))); // TODO: investigate how to make this work
 
   const dayStart = ICAL.Time.fromJSDate(startOfDay(date));
   const dayEnd = ICAL.Time.fromJSDate(endOfDay(date));
@@ -414,18 +436,14 @@ function recursOnDay(ev, date) {
 
     if (next.compare(dayEnd) > 0) break;
 
-    const jsStart  = next.toJSDate();
-    const duration = (ev.end ?? ev.start) - ev.start;
-    const jsEnd    = new Date(jsStart.getTime() + duration);
+    if (next.compare(dayStart) >= 0 && next.compare(dayEnd) <= 0) {
 
-    if ((jsStart >= dayStart.toJSDate() && jsStart < dayEnd.toJSDate())
-      ||(jsEnd > dayStart.toJSDate() && jsEnd <= dayEnd.toJSDate())
-      ||(jsStart < dayStart.toJSDate() && jsEnd > dayEnd.toJSDate())
-    ) {
-      
-      if (ev.exdates?.some(d => isSameDay(d, jsStart))) { //ignore exceptions to rrule
-        continue;
-      }
+      const jsStart = next.toJSDate();
+
+      if (ev.exdates?.some(d => isSameDay(d, jsStart))) continue;
+
+      const originalDate = toDateInputValue(jsStart);
+      if (ev.exceptions?.[originalDate]?.deleted) continue;
 
       return true;
     }
@@ -436,18 +454,27 @@ function recursOnDay(ev, date) {
 
 function materializeOccurrence(ev, date) {
 
-  const start = new Date(date);
-  start.setHours(ev.start.getHours(), ev.start.getMinutes(), 0, 0);
+  const originalDate = toDateInputValue(date);
+  const exception = ev.exceptions?.[originalDate] ?? {};
+  if (exception.deleted) return null;
 
-  const duration =
-    (ev.end ?? ev.start) - ev.start;
+  const baseStart = exception.start ? new Date(exception.start) : (() => {
+    const s = new Date(date);
+    s.setHours(ev.start.getHours(), ev.start.getMinutes(), 0, 0);
+    return s;
+  })();
 
-  const end = new Date(start.getTime() + duration);
+  const baseEnd = exception.end 
+    ? new Date(exception.end)
+    : new Date(baseStart.getTime() + ((ev.end ?? ev.start) - ev.start));
 
   return {
     ...ev,
-    start,
-    end,
+    ...exception,
+    start: baseStart,
+    end: baseEnd,
+    masterId: ev.id,
+    originalDate,
     recurring: true,
     seriesStart: ev.start
   };

@@ -10,7 +10,7 @@ For example, you could use the OSS [Syncthing](https://syncthing.net/).
 
 ## Changelog
 
-- 260611, **v0.2.3-alpha**: Prevent bad user input; time input UX improvement; notifications bugfix
+- 260611, **v0.2.3-alpha**: Prevent bad user input; time input UX improvement
 - 260531, **v0.2.2-alpha**: Major bugfixes for notifications
 - 260530, **v0.2.1-alpha**: Introduce event notifications
 - 260512, **v0.2.0-alpha**: Introduce multi-day events; fix formatting
