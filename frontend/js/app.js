@@ -222,6 +222,9 @@ function init() {
   renderCalendar();
   renderWeekdayHeader(_firstWeekday);
   setStatus('No file open. Click "Open .ics file" to begin.');
+
+  updateNowIndicator();
+  setInterval(updateNowIndicator, 2 * 1000);
 }
 
 // ------------------------------------------------------------
@@ -570,6 +573,8 @@ function renderWeekView() {
   scroll.appendChild(body);
   view.appendChild(scroll);
   elGrid.appendChild(view);
+
+  updateNowIndicator();
 
   // Restore scroll position if one was saved
   if (_savedScrollTop !== null) {
@@ -1478,4 +1483,33 @@ function formError(element) {
     element.style.color = 'var(--color-danger)';
     setTimeout(() => { element.style.borderColor = ''; }, 2000);
     setTimeout(() => { element.style.color = ''; }, 2000);
+}
+
+function updateNowIndicator() {
+  // Remove any existing indicator(s) from a previous tick
+  document.querySelectorAll('.week-now-indicator').forEach(el => el.remove());
+
+  // Only relevant in week/day view
+  if (currentView !== 'week' && currentView !== 'day') return;
+
+  const now = new Date();
+  const todayCol = document.querySelector('.week-day-col.today');
+  if (!todayCol) return; // today not in the current week
+
+  const fractionalHour = now.getHours() + now.getMinutes() / 60;
+  const topPx = fractionalHour * HOUR_H;
+
+  const line = document.createElement('div');
+  line.className = 'week-now-indicator';
+  line.style.top = `${topPx}px`;
+  todayCol.appendChild(line);
+
+  // Add the dot to the time gutter
+  const gutter = document.querySelector('.week-time-gutter');
+  if (gutter) {
+    const dot = document.createElement('div');
+    dot.className = 'week-now-indicator-dot';
+    dot.style.top = `${topPx}px`;
+    gutter.appendChild(dot);
+  }
 }
