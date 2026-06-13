@@ -7,6 +7,148 @@ if (!ICAL) {
   throw new Error("ical.js failed to load — window.ICAL is undefined");
 }
 
+/* #############################################################
+ *   Notifications
+ * ########################################################## */
+
+/**
+ * Schedules notifications for the next 400 occurrences of the given events.
+ * Existing notifications are cancelled first, so this can be safely called multiple times.
+ * @param {*} events 
+ * @returns none
+ */
+export async function refreshNotifs(events) {
+  if (!window.__TAURI__) return;
+
+  const {invoke} = window.__TAURI__.core;
+  const result = await invoke('request_notification_permission', {});
+  if (!result?.granted) return; // abort if user denied
+
+  await invoke('cancel_all_notifications', {});
+
+  const now = new Date();
+  const cutoff = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+  const maxNotifs = 400;
+
+  for (const ev of events) {
+    if (!ev.start || ev.allDay) continue; // TODO: support all-day events
+    
+    const xptn = ev.exceptions
+    console.log(`exceptions: ${xptn}`);
+
+    const occurrences = ev.rrule 
+      ? occurrencesInWindow(ev, now, cutoff) 
+      : (ev.start > now && ev.start < cutoff ? [ev.start] : []);
+
+    if (xptn) {
+      console.log(`occurrences: ${occurrences}`);
+    }
+
+    for (const occ of occurrences) {// TODO: change to 400 events in the future
+
+      const minsBefore = 10;
+      const triggerDate = new Date(occ.getTime() - minsBefore * 60 * 1000);
+
+      if (triggerDate <= now) continue;
+
+      await scheduleEventNotification(
+        ev.id,
+        `${ev.title} starts at ${toTimeInputValue(occ)} (in ${minsBefore} minutes)`,
+        ev.description || 'Make sure not to miss it!',
+        triggerDate,
+        minsBefore
+      );
+    }
+  }
+
+  
+  // TODO: schedule notifs to remind user to open the app one week, three days and one day before the last scheduled notification to refresh notifs
+}
+
+/**
+ * Schedules a notification at a specific Date.
+ * @param {string} uuid: 
+ * @param {string} title
+ * @param {string} body: Notification content
+ * @param {Date} triggerDate: Time of trigger
+ * 
+ */
+export async function scheduleEventNotification(uuid, title, body, triggerDate, offsetMinutes) {
+
+  const {invoke} = window.__TAURI__.core; 
+
+  const id = notificationId(uuid, offsetMinutes, triggerDate.getTime());
+
+  if (triggerDate.getDate() === new Date().getDate()) {
+    console.log(`Scheduled notification for event "${title}" at ${triggerDate.toLocaleTimeString()}`);
+  }
+
+  await invoke('schedule_notification', {
+    id, //must be unique per event; reuse the same id to update.
+    title,
+    body,
+    triggerMs: triggerDate.getTime(), // Unix ms, matches AlarmManager.RTC_WAKEUP
+  });
+}
+
+export async function cancelEventNotification(id) {
+  const { invoke } = window.__TAURI__.core; 
+  await invoke('cancel_notification', { id });
+}
+
+function notificationId(eventId, offsetMinutes, occurrenceMs = 0) {
+  let h = 0;
+  for (const c of eventId) h = (Math.imul(31, h) + c.charCodeAt(0)) | 0;
+  // Mix in the occurrence time so two occurrences of the same series don't collide
+  h = (Math.imul(31, h) + (occurrenceMs / 60000 | 0)) | 0;
+  return (Math.abs(h) % 2_000_000) * 10 + offsetMinutes;
+}
+
+/**
+ * Returns all start times of a recurring event that fall within [windowStart, windowEnd].
+ * Uses the rrule iterator directly, so the dates are exact — not materialized to today.
+ *
+ * @param {object} ev       - Event with a valid ev.rrule string
+ * @param {Date}   windowStart
+ * @param {Date}   windowEnd
+ * @returns {Date[]}
+ */
+function occurrencesInWindow(ev, windowStart, windowEnd) {
+  const rule      = ICAL.Recur.fromString(ev.rrule);
+  const startTime = ICAL.Time.fromJSDate(ev.start);
+  const iter      = rule.iterator(startTime);
+  const results   = [];
+
+  // look only one yr ahead
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+  const breakGuard = new Date(windowEnd.getTime() + 365 * MS_PER_DAY);
+
+  let next;
+  while ((next = iter.next())) {
+    const jsDate = next.toJSDate();
+
+    if (jsDate > breakGuard) break;
+
+    // Skip exdates
+    if (ev.exdates?.some(ex => isSameDay(ex, jsDate))) continue;
+
+    const key = toDateInputValue(jsDate);
+    const exception = ev.exceptions?.[key];
+
+    if (exception?.deleted) continue;
+
+    const start = exception?.start ? new Date(exception.start) : jsDate;
+
+    if (start >= windowEnd) continue;
+    if (start < windowStart) continue;
+
+    results.push(start);
+  }
+
+  return results;
+}
+
+
 // ============================================================
 // FACTORY FUNCTION
 // ============================================================
@@ -34,7 +176,8 @@ export function createEvent({ title, start, end, description = '', color = '#A80
     color,
     allDay,
     rrule,
-    exdates: []
+    exdates: [],
+    exceptions: {} // sparse map of per-occurrence overrides, keyed by YYYY-MM-DD
   };
 }
 
@@ -60,6 +203,8 @@ export function parseICS(rawText) {
     const rruleProp = v.getFirstPropertyValue('rrule');
     const exdateProps = v.getAllProperties('exdate');
 
+    const xExceptions = v.getFirstPropertyValue('x-exceptions');
+
     return {
       id: ev.uid ?? crypto.randomUUID(),
       title: ev.summary ?? '(No title)',
@@ -69,9 +214,38 @@ export function parseICS(rawText) {
       color: v.getFirstPropertyValue('color') ?? '#A80808',
       allDay: ev.startDate?.isDate ?? false,
       rrule: rruleProp ? rruleProp.toString() : null,
-      exdates: exdateProps.map(p => p.getFirstValue().toJSDate())
+      exdates: exdateProps.map(p => p.getFirstValue().toJSDate()),
+      exceptions: xExceptions ? JSON.parse(xExceptions) : {}
     };
   });
+}
+
+/**
+ * Checks for common problems like overlapping events, malformed RRULEs, etc. 
+ * Display warnings in the status bar if any issues are found. 
+ * Make warnings descriptive.
+ * @param {*} events 
+ * @returns 
+ */
+function checkQuality(events) {
+
+  recurringEvents = events.filter(e => e.rrule);
+
+  // Check if an exception is moved further than a year from the original date 
+  // (not supported by notifications scheduling)
+  for (const recurring of recurringEvents) {
+    for (const [originalDate, exception] of Object.entries(recurring.exceptions)) {
+      if (exception.deleted) continue;
+
+      const original = new Date(originalDate + 'T00:00:00');
+      const exceptionStart = new Date(exception.start);
+
+      if (Math.abs(exceptionStart.getTime() - original.getTime()) > 365 * 24 * 60 * 60 * 1000) {
+        //setStatus(`Warning: Bad recurrent event: An exception (at ${exception.start}) for event "${exception.title}" is moved more than a year from the original date. This may cause notifications for this occurrence to not work.`, 'warning'); //TODO: refactor to have access to setStatus
+        return;
+      }
+    }
+  }
 }
 
 // ============================================================
@@ -132,6 +306,13 @@ export function serializeICS(events) {
       }
     }
 
+    if (ev.exceptions && Object.keys(ev.exceptions).length > 0) {
+      vevent.addPropertyWithValue(
+        'x-exceptions',
+        JSON.stringify(ev.exceptions)
+      );
+    }
+
     vcal.addSubcomponent(vevent);
   }
 
@@ -160,17 +341,57 @@ export function eventsOnDay(events, date) {
 
     if (!ev.start) continue;
 
+    if (!ev.end) ev.end=ev.start;
+
     if (!ev.rrule) {
 
-      if (ev.start < dayEnd && (ev.end ?? ev.start) > dayStart) {
+      if (
+           (ev.start < dayEnd && ev.start > dayStart) // starts on day
+        || (ev.end < dayEnd && ev.end > dayStart) // ends on day
+        || (ev.start < dayStart && ev.end > dayEnd)) { // covers day
         result.push(ev);
       }
 
       continue;
     }
 
+    // Scan all exceptions for ones whose resolved start falls on this day.
+    if (ev.exceptions) {
+      for (const [originalKey, exception] of Object.entries(ev.exceptions)) {
+        if (exception.deleted) continue;
+        if (!exception.start) continue; 
+
+        if (originalKey === toDateInputValue(date)) continue;
+ 
+        const resolvedStart = new Date(exception.start);
+        if (!isSameDay(resolvedStart, date)) continue;
+
+        const originalDate = new Date(originalKey + 'T00:00:00');
+        const occurrence = materializeOccurrence(ev, originalDate);
+        if (occurrence) result.push(occurrence);
+      }
+    }
+
+    // rrule occurrence on this day
+    const dateKey = toDateInputValue(date);
+    const exceptionOnThisDay = ev.exceptions?.[dateKey];
+ 
+    if (exceptionOnThisDay) {
+      if (exceptionOnThisDay.deleted) continue;
+ 
+      if (exceptionOnThisDay.start &&
+          !isSameDay(new Date(exceptionOnThisDay.start), date)) continue;
+ 
+      // Time-only shift (same day): materialize normally.
+      const occurrence = materializeOccurrence(ev, date);
+      if (occurrence) result.push(occurrence);
+      continue;
+    }
+
+    // No exception entry for this day — check the plain RRULE.
     if (recursOnDay(ev, date)) {
-      result.push(materializeOccurrence(ev, date));
+      const occurrence = materializeOccurrence(ev, date);
+      if (occurrence) result.push(occurrence);
     }
   }
 
@@ -256,8 +477,6 @@ export function toTimeInputValue(date) {
  * @returns {Date}
  */
 export function combineDateAndTime(dateStr, timeStr) {
-  // `new Date("2024-10-15T09:00")` — without a timezone suffix,
-  // the browser interprets this in LOCAL time. That's what we want.
   return new Date(`${dateStr}T${timeStr}`);
 }
 
@@ -286,6 +505,7 @@ function recursOnDay(ev, date) {
   const startTime = ICAL.Time.fromJSDate(ev.start);
 
   const iter = rule.iterator(startTime);
+  //iter.advanceTo(ICAL.Time.fromJSDate(startOfDay(date))); // TODO: investigate how to make this work
 
   const dayStart = ICAL.Time.fromJSDate(startOfDay(date));
   const dayEnd = ICAL.Time.fromJSDate(endOfDay(date));
@@ -296,13 +516,18 @@ function recursOnDay(ev, date) {
 
     if (next.compare(dayEnd) > 0) break;
 
-    const js = next.toJSDate();
+    if (next.compare(dayStart) >= 0 && next.compare(dayEnd) <= 0) {
 
-    if (js >= dayStart.toJSDate()&& js <= dayEnd.toJSDate()) {
-      
-      if (ev.exdates?.some(d => isSameDay(d, js))) {
-        continue;
-      }
+      const jsStart = next.toJSDate();
+
+      if (ev.exdates?.some(d => isSameDay(d, jsStart))) continue;
+
+      const originalDate = toDateInputValue(jsStart);
+      const exception = ev.exceptions?.[originalDate];
+      if (exception?.deleted) continue;
+
+      // exception moved to another day
+      if (exception?.start && !isSameDay(new Date(exception.start), jsStart)) continue;
 
       return true;
     }
@@ -313,18 +538,27 @@ function recursOnDay(ev, date) {
 
 function materializeOccurrence(ev, date) {
 
-  const start = new Date(date);
-  start.setHours(ev.start.getHours(), ev.start.getMinutes(), 0, 0);
+  const originalDate = toDateInputValue(date);
+  const exception = ev.exceptions?.[originalDate] ?? {};
+  if (exception.deleted) return null;
 
-  const duration =
-    (ev.end ?? ev.start) - ev.start;
+  const baseStart = exception.start ? new Date(exception.start) : (() => {
+    const s = new Date(date);
+    s.setHours(ev.start.getHours(), ev.start.getMinutes(), 0, 0);
+    return s;
+  })();
 
-  const end = new Date(start.getTime() + duration);
+  const baseEnd = exception.end 
+    ? new Date(exception.end)
+    : new Date(baseStart.getTime() + ((ev.end ?? ev.start) - ev.start));
 
   return {
     ...ev,
-    start,
-    end,
+    ...exception,
+    start: baseStart,
+    end: baseEnd,
+    masterId: ev.id,
+    originalDate,
     recurring: true,
     seriesStart: ev.start
   };

@@ -7,6 +7,10 @@ data/
 .stignore
 .stversions/
 
+# keystores
+src-tauri/gen/android/keystore.properties
+*.jks
+
 # Logs
 logs
 *.log

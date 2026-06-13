@@ -11,6 +11,9 @@
     "fs:default",
     "fs:read-all",
     "fs:write-all",
-    "dialog:default"
+    "dialog:default",
+    "notification-scheduler:allow-schedule-notification",
+    "notification-scheduler:allow-cancel-notification",
+    "notification-scheduler:allow-request-notification-permission"
   ]
 }

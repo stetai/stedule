@@ -72,15 +72,7 @@
 }
 
 /* ============================================================
-   CSS RESET
-   Browsers apply their own default margins, paddings, and box
-   models. A reset zeroes these out so you start from a blank
-   slate. The most important rule here is box-sizing: border-box.
-
-   WHY border-box: By default (content-box), if you set
-   width:200px and padding:10px, the element is actually 220px
-   wide. border-box includes padding in the width you declare,
-   which is almost always what you intuitively expect.
+   CSS RESET: Reset zeroes browser's defaults out
 ============================================================ */
 
 *, *::before, *::after {
@@ -101,7 +93,7 @@ body {
   color: var(--color-text);
   display: flex;
   flex-direction: column;
-  height: 100dvh; /* vh = viewport height — 100vh means "full screen height" */
+  height: 100dvh; /* vh = viewport height. 100vh means "full screen height" */
   overflow: hidden;
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
@@ -165,8 +157,6 @@ select {
 
 /* ============================================================
    BUTTONS
-   A small button system. Classes compose: btn + btn-primary,
-   or btn + btn-ghost, etc. This avoids duplicating base styles.
 ============================================================ */
 
 .btn {
@@ -351,8 +341,6 @@ select {
 
 /* ============================================================
    MODAL
-   The overlay covers the full screen. The modal is centered
-   inside it using flexbox.
 ============================================================ */
 
 .modal-overlay {
@@ -602,6 +590,43 @@ select:focus {
 }
 
 /* ============================================================
+   scope dialog
+============================================================ */
+
+#scope-overlay {
+  z-index: 110;
+}
+ 
+.scope-dialog {
+  width: min(360px, 90vw);
+}
+ 
+.scope-description {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+ 
+.scope-dialog-footer {
+  gap: var(--space-sm);
+  /* Override the default space-between to cluster buttons on the right */
+  justify-content: flex-end;
+}
+
+/* ============================================================
+   ERROR / CONFIRM DIALOGS
+============================================================ */
+
+#error-overlay,
+#confirm-overlay {
+  z-index: 120; /* above scope-overlay (110) and modal-overlay (100) */
+}
+
+#confirm-message {
+  white-space: pre-line;
+}
+
+/* ============================================================
    STATUS BAR
 ============================================================ */
 
@@ -771,7 +796,7 @@ select:focus {
   min-height: calc(24 * var(--hour-h));
 }
 
-/* -- Time gutter ----------------------------------------------------- */
+/* -- Time gutter ------------------------------------------ */
 
 .week-time-gutter {
   width: var(--week-gutter-w, 20px);
@@ -783,17 +808,17 @@ select:focus {
 .week-hour-label {
   height: var(--hour-h);
   display: flex;
-  align-items: flex-start;     /* label sits at the TOP of its hour slot */
   justify-content: flex-end;
   padding-right: var(--space-sm);
   padding-top: 3px;
   font-family: var(--font-numeric);
   font-size: 0.66rem;
   color: var(--color-text-muted);
+  transform: translateY(-25%);
   box-sizing: border-box;
 }
 
-/* -- day columns -- */
+/* -- day columns ------------------------------------------ */
 .week-days {
   flex: 1;
   display: flex;
@@ -835,16 +860,43 @@ select:focus {
   pointer-events: none; /* clicks pass through to the column */
 }
 
-/* -- Week event chips ------------------------------------------------ */
+/* -- now indicator ---------------------------------------- */
+
+.week-now-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--color-today);   
+  z-index: 3;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+/* Dot in the time gutter, aligned with the indicator line */
+.week-now-indicator-dot {
+  position: absolute;
+  right: 1px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-today);
+  transform: translateY(-50%);
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* -- Week event chips ------------------------------------- */
 
 .week-event {
   position: absolute;
   /* left: leave a 1px gap from the column edges */
   left: 1px;
   /* top, bottom: 1px gap to neighbouring events*/
-  top: 0.5px;
-  bottom: 0.5px;
+  top: 1px;
+  bottom: 1px;
   border-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-md);
   padding: 1px 1px;
   padding-top: 1px;
   color: white;
@@ -899,6 +951,19 @@ select:focus {
   border-radius: var(--radius-sm);
   z-index: 2;
   touch-action: none;
+}
+
+/* Flatten top corners when event started on a previous day */
+.week-event.continues-from-prev {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+/* Flatten bottom corners when event runs past midnight */
+.week-event.continues-to-next {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom: none !important; 
 }
 
 .week-event-resize {

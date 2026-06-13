@@ -5,7 +5,7 @@
 const v = new URL(import.meta.url).search;
 
 import {
-  openFile, writeFile, reloadFile, hasFileOpen, getFileName, canWriteInPlace
+  openFile, writeFile, reloadFile, hasFileOpen, getFileName, isFirefox
 } from './storage.js';
 
 import {
@@ -13,6 +13,7 @@ import {
   eventsOnDay, parseRRule, getAdjWeekday,
   isToday, startOfWeek, addTime,
   toDateInputValue, toTimeInputValue, combineDateAndTime,
+  scheduleEventNotification, refreshNotifs,
 } from './calendar.js';
 
 // ============================================================
@@ -23,6 +24,8 @@ let events         = [];          // All parsed event objects
 let currentDate    = new Date();  // The date the calendar is currently showing
 let currentView    = 'week';      // 'month' | 'week' | 'day' (week/day = future work)
 let editingId      = null;        // ID of the event currently in the modal, or null
+
+let editingOriginalDate = null;   // (YYYY-MM-DD) which occurrence of a recurring event to edit
 
 // event draft
 let draftEvent     = null;        // Event that is being worked on in quickadd
@@ -41,6 +44,9 @@ let _weekDayNum = 7;
 let _firstWeekday = 0; //0 = "Mon", 1 = "Tue", etc
 let _seqcDayNum = 1;
 
+// UI 
+let _savedScrollTop = null;
+
 // ============================================================
 // DOM REFERENCES
 // ============================================================
@@ -53,9 +59,10 @@ const elStatus     = $('status-bar');
 const elOverlay    = $('modal-overlay');
 const elModalTitle = $('modal-title');
 const elTitle      = $('event-title');
-const elDate       = $('event-date');
 const elWeekdays   = $('weekday-headers');
+const elStartDate  = $('event-start-date');
 const elStartTime  = $('event-start-time');
+const elEndDate    = $('event-end-date');
 const elEndTime    = $('event-end-time');
 const elRepeat     = $('event-repeat');
 const elDesc       = $('event-description');
@@ -76,10 +83,22 @@ const elQuickTime  = $('quick-add-time');
 const elQuickOpen  = $('quick-add-open');
 const elQuickSave  = $('quick-add-save');
 
+const elScopeOverlay = $('scope-overlay');
+const elScopeDesc    = $('scope-description');
+
+const elErrorOverlay   = $('error-overlay');
+const elErrorMessage   = $('error-message');
+const elConfirmOverlay = $('confirm-overlay');
+const elConfirmMessage = $('confirm-message');
+
 // ============================================================
 // INITIALIZATION
 // ============================================================
 
+if (window.__TAURI__) {
+    const { invoke } = window.__TAURI__.core;
+    invoke('request_battery_optimisation_exemption').catch(console.error);
+}
 
 document.addEventListener('DOMContentLoaded', init);
 
@@ -151,6 +170,16 @@ function init() {
   $('modal-save').addEventListener('click',   handleModalSave);
   $('modal-delete').addEventListener('click', handleModalDelete);
 
+  // Scope dialog buttons
+  $('scope-cancel').addEventListener('click', closeScopeDialog);
+  $('scope-this').addEventListener('click',   () => commitRecurrenceSave('this'));
+  $('scope-all').addEventListener('click',    () => commitRecurrenceSave('all'));
+
+  // Error/confirm dialog buttons
+  $('error-ok').addEventListener('click', closeError);
+  $('confirm-cancel').addEventListener('click', () => resolveConfirm(false));
+  $('confirm-ok').addEventListener('click',     () => resolveConfirm(true));
+
   // Close modal when clicking the dark overlay (outside the modal box)
   elOverlay.addEventListener('click', (e) => {
     if (e.target === elOverlay) closeModal(); 
@@ -169,28 +198,51 @@ function init() {
     }
   });
 
+  elStartDate.addEventListener('change', shiftEndWithStart);
+  elStartTime.addEventListener('change', shiftEndWithStart);
+
+  // reset remembered duration on manual change
+  elEndTime.addEventListener('change', () => {
+    _modalDuration = null; 
+  });
+  elEndDate.addEventListener('change', () => {
+    _modalDuration = null;
+  });
+
   elRepeat.addEventListener('change', updateRepeatUI);
   elRepeatEndType.addEventListener('change', updateRepeatUI);
+
+  //reload all notificatins on app open
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && events.length > 0) {
+      refreshNotifs(events);
+    }
+  });
 
   renderCalendar();
   renderWeekdayHeader(_firstWeekday);
   setStatus('No file open. Click "Open .ics file" to begin.');
+
+  updateNowIndicator();
+  setInterval(updateNowIndicator, 2 * 1000);
 }
 
-// ============================================================
+// ------------------------------------------------------------
 // FILE HANDLING
-// ============================================================
+// ------------------------------------------------------------
 
 async function handleOpenFile() {
   try {
     const raw = await openFile();
     events = parseICS(raw);
     renderCalendar();
-    const saveNote = canWriteInPlace() ? '' : ' · Firefox: saves will download a new file';
+    const saveNote = !isFirefox()  ? '' : ' · Firefox: saves will download a new file';
     setStatus(`Loaded: ${getFileName()} — ${events.length} event(s)${saveNote}`, 'saved');
+
+    refreshNotifs(events);
+
   } catch (err) {
-    // The File System Access API throws an AbortError when the user
-    // cancels the picker. This is not a real error — don't show an alert.
+    // don't show error if it comes from user input
     if (err.name === 'AbortError') return;
     console.error('Open failed:', err);
     setStatus(`Error opening file: ${err?.message ?? String(err)}`, 'error');
@@ -210,11 +262,14 @@ async function save() {
   }
 }
 
-// ============================================================
+// ------------------------------------------------------------
 // NAVIGATION
-// ============================================================
+// ------------------------------------------------------------
 
 function navigate(direction) {
+
+  if (weekScrollEl) _savedScrollTop = weekScrollEl.scrollTop;
+
   if (currentView === 'month') {
     currentDate.setMonth(currentDate.getMonth() + direction);
   } else if (currentView === 'week') {
@@ -241,9 +296,9 @@ function switchView(view) {
   renderCalendar();
 }
 
-// ============================================================
+// ------------------------------------------------------------
 // RENDERING
-// ============================================================
+// ------------------------------------------------------------
 
 function renderCalendar() {
   // Clear previous render
@@ -423,11 +478,28 @@ function renderWeekView() {
     for (const item of laidOut) {
       const ev = item.event;
       
+      // create event chip
       if (ev.allDay) continue; // all-day events stay in month-chip style
  
-      const startH   = ev.start.getHours() + ev.start.getMinutes() / 60;
-      const endDate  = ev.end ?? new Date(ev.start.getTime() + 60 * 60 * 1000);
-      const endH     = endDate.getHours() + endDate.getMinutes() / 60;
+      let startH = 0;
+      if (ev.start.getDate() === day.getDate()) {
+        startH = ev.start.getHours() + ev.start.getMinutes() / 60; 
+      }
+
+      const endDate  = ev.end ?? new Date(ev.start.getTime() + 2 * 60 * 60 * 1000); // if unspecified: 2h after start
+
+      let endH = 24;
+      if (endDate.getDate() === day.getDate()) {
+        endH = endDate.getHours() + endDate.getMinutes() / 60;
+      }
+      if (endDate.getDate() === day.getDate() + 1 && endDate.getHours() === 0 && endDate.getMinutes() === 0) {
+        endH = 23.99;
+      }
+
+      // multi-day?
+      const continuesFromPrev = ev.start.getDate() !== day.getDate() && ev.start < day;
+      const continuesToNext = endH === 24;
+
       // Clamp to a minimum visual height so short events are still clickable
       const duration = Math.max(endH - startH, 0.25);
 
@@ -437,6 +509,10 @@ function renderWeekView() {
  
       const chip = document.createElement('div');
       chip.className = 'week-event';
+
+      if (continuesFromPrev) chip.classList.add('continues-from-prev');
+      if (continuesToNext)   chip.classList.add('continues-to-next');
+
       chip.style.top        = `${startH * HOUR_H}px`;
       chip.style.height     = `${duration * HOUR_H}px`;
       chip.style.left       = `calc(${left}% + 1px)`;
@@ -450,7 +526,7 @@ function renderWeekView() {
  
       const timeEl = document.createElement('span');
       timeEl.className = 'week-event-time';
-      if(duration * HOUR_H > 32 /*&& there are no collisions*/){
+      if(duration * HOUR_H > 32 && !continuesFromPrev /*&& there are no collisions*/){
         timeEl.textContent = `${formatTime(ev.start)}`;//- ${formatTime(endDate)}`;
       }
  
@@ -497,6 +573,14 @@ function renderWeekView() {
   scroll.appendChild(body);
   view.appendChild(scroll);
   elGrid.appendChild(view);
+
+  updateNowIndicator();
+
+  // Restore scroll position if one was saved
+  if (_savedScrollTop !== null) {
+    scroll.scrollTop = _savedScrollTop;
+    _savedScrollTop = null;
+  }
 }
 
 /* Determine week number of the current week*/
@@ -836,6 +920,7 @@ function handleQuickSave() {
   closeQuickAdd();
   renderCalendar();
   save();
+  refreshNotifs(events);
 }
 
 // ============================================================
@@ -849,9 +934,11 @@ function openNewEventModal(date, title='', end=null) {
 
   // Pre-fill with the clicked date and a sensible default time
   elTitle.value      = title;
-  elDate.value       = toDateInputValue(date);
+  elStartDate.value  = toDateInputValue(date);
   elStartTime.value  = toTimeInputValue(date); 
-  elEndTime.value    = elEndTime.value = toTimeInputValue(end ?? addTime(date,1.5));
+  const defaultEnd   = addTime(date,1.5);
+  elEndTime.value    = toTimeInputValue(end ?? defaultEnd);
+  elEndDate.value    = toDateInputValue(end ?? defaultEnd);
   elDesc.value       = '';
   elColor.value      = '#A80808';
   elRepeat.value     = '';
@@ -872,6 +959,8 @@ function openNewEventModal(date, title='', end=null) {
 
   // Focus the title field so the user can start typing immediately.
   elTitle.focus();
+
+  rememberDuration(); // remember duration for editing
 }
 
 function updateRepeatUI() {
@@ -894,7 +983,7 @@ function updateRepeatUI() {
   if (freq === "WEEKLY") {
     elRepeatWeekdays.style.display = 'flex';
 
-    const weekday = ["SU","MO","TU","WE","TH","FR","SA"][new Date(elDate.value).getDay()];
+    const weekday = ["SU","MO","TU","WE","TH","FR","SA"][new Date(elStartDate.value).getDay()];
 
     const cb = document.querySelector(`#repeat-weekdays input[value="${weekday}"]`);
     if (cb && !document.querySelector("#repeat-weekdays input:checked")) {
@@ -910,18 +999,18 @@ function updateRepeatUI() {
 }
 
 function openEditEventModal(ev) {
-  editingId = ev.id;
+  editingId = ev.masterId ?? ev.id; // master's ID for recurring events
+  editingOriginalDate = ev.originalDate ?? null; // null for non-recurring
+
   elModalTitle.textContent = 'Edit Event';
   elDeleteBtn.style.display = '';
 
   elTitle.value     = ev.title;
-  elDate.value      = toDateInputValue(ev.seriesStart ?? ev.start);
-  elStartTime.value = toTimeInputValue(ev.seriesStart ?? ev.start);
-  elEndTime.value   = toTimeInputValue(
-    ev.seriesStart ? 
-    new Date(ev.seriesStart.getTime() + (ev.end - ev.start)) :
-    (ev.end ?? ev.start)
-  );
+  elStartDate.value = toDateInputValue(ev.start);
+  elStartTime.value = toTimeInputValue(ev.start);
+  const end  = ev.end ?? ev.start;
+  elEndDate.value   = toDateInputValue(end);
+  elEndTime.value   = toTimeInputValue(end);
   elDesc.value      = ev.description ?? '';
   elColor.value     = ev.color ?? '#A80808';
 
@@ -957,6 +1046,8 @@ function openEditEventModal(ev) {
 
   updateRepeatUI();
   openModal();
+
+  rememberDuration(); // remember duration for editing
 }
 
 function openModal() {
@@ -975,20 +1066,29 @@ function closeModal() {
   elOverlay.classList.remove('open');
   elOverlay.setAttribute('aria-hidden', 'true');
   editingId = null;
+  editingOriginalDate = null;
 }
 
 function handleModalSave() {
   const title = elTitle.value.trim();
 
   if (!title) {
-    elTitle.focus();
-    elTitle.style.borderColor = 'var(--color-danger)';
-    setTimeout(() => { elTitle.style.borderColor = ''; }, 2000);
+    formError(elTitle);
     return;
   }
 
-  const start = combineDateAndTime(elDate.value, elStartTime.value);
-  const end   = combineDateAndTime(elDate.value, elEndTime.value);
+  const start = combineDateAndTime(elStartDate.value, elStartTime.value);
+  const end   = combineDateAndTime(elEndDate.value, elEndTime.value);
+
+  if (end < start) {
+    if (elStartDate.value === elEndDate.value) {
+      formError(elEndTime);
+      return;
+    } else {
+      formError(elEndDate);
+      return;
+    }
+  }
 
   const repeat = elRepeat.value || null;
   let rrule = null;
@@ -1027,47 +1127,175 @@ function handleModalSave() {
     rrule = parts.join(";");
   }
 
-  if (editingId) {
-    // Update existing event: find it and replace its fields.
-    // events.findIndex() returns the index of the first matching element,
-    // or -1 if not found.
-    const idx = events.findIndex(ev => ev.id === editingId);
-    if (idx !== -1) {
-      // Create a NEW object with old properties, then overwrite listed ones
-      // "Update an object" without mutating the original.
-      events[idx] = { ...events[idx], title, start, end,
-                      description: elDesc.value,
-                      color: elColor.value,
-                      rrule };
-    }
-    // todo: handle not found case
-  } else {
-    // New event
-    events.push(createEvent({
-      title,
-      start,
-      end,
-      description: elDesc.value,
-      color: elColor.value,
-      rrule,
-    }));
+  if (editingId && editingOriginalDate){
+    _pendingSave = { title, start, end, description: elDesc.value, color: elColor.value, rrule };
+    elScopeDesc.textContent = 
+      'This is a recurring event. Do you want to apply the changes to just this occurrence, or all occurrences?';
+    $('scope-this').textContent = 'This event';
+    $('scope-all').textContent = 'All events';
+    openScopeDialog();
+    return; // wait for scope choice before saving
   }
 
-  closeModal();
-  renderCalendar();
-  save();
+  // Non-recurring
+  _commitRecurrenceSaveNow({title, start, end, description: elDesc.value, color: elColor.value, rrule}, 'all');
 }
 
-function handleModalDelete() {
+async function handleModalDelete() {
   if (!editingId) return;
 
-  if (!confirm('Delete this event?')) return;
+  if (editingOriginalDate) {
+    _pendingSave = null; // no changes to save, just delete
+    elScopeDesc.textContent = 
+      'This is a recurring event. Do you want to delete just this occurrence, or all occurrences?';
+    $('scope-this').textContent = 'This event';
+    $('scope-all').textContent = 'All events';
+    openScopeDialog();
+    return;
+  }
+
+  if (!await showConfirm(
+    `Delete ${elTitle.value}?\n(${elStartDate.value}, ${elStartTime.value} — ${elEndDate.value === elStartDate.value ? '' : elEndDate.value + ', '}${elEndTime.value})`
+  )) return;
 
   events = events.filter(ev => ev.id !== editingId);
 
   closeModal();
   renderCalendar();
   save();
+  refreshNotifs(events);
+}
+
+// ============================================================
+// SCOPE DIALOG HELPERS
+// ============================================================
+ 
+// Temporary holding area for the field values collected by handleModalSave() before the user has confirmed scope. Null when the action is a delete.
+let _pendingSave = null;
+ 
+function openScopeDialog() {
+  elScopeOverlay.classList.add('open');
+  elScopeOverlay.setAttribute('aria-hidden', 'false');
+}
+ 
+function closeScopeDialog() {
+  elScopeOverlay.classList.remove('open');
+  elScopeOverlay.setAttribute('aria-hidden', 'true');
+}
+ 
+/**
+ * Called when the user picks a scope in the scope dialog.
+ * @param {'this'|'all'} scope
+ */
+async function commitRecurrenceSave(scope) {
+  closeScopeDialog();
+ 
+  // --- delete ---
+  if (_pendingSave === null) {
+    if (scope === 'this') {
+      // Mark this single occurrence as deleted in the master's exceptions map.
+      const idx = events.findIndex(ev => ev.id === editingId);
+      if (idx !== -1) {
+        events[idx] = {
+          ...events[idx],
+          exceptions: {
+            ...events[idx].exceptions,
+            [editingOriginalDate]: { deleted: true }
+          }
+        };
+      }
+    } else {
+      // Delete the entire series (master + all occurrences)
+      if (!await showConfirm(`Delete all events in the series ${elTitle.value}?`)) return;
+      events = events.filter(ev => ev.id !== editingId);
+    }
+
+    _pendingSave = null;
+ 
+    closeModal();
+    renderCalendar();
+    save();
+    refreshNotifs(events);
+    return;
+  }
+ 
+  // --- save ---
+  if (scope === 'this'){
+    const idx = events.findIndex(ev => ev.id === editingId);
+    if (idx !== -1) {
+      // Write a sparse exception with the new values for this occurrence
+      const master = events[idx];
+      const exception = { ..._pendingSave };
+
+      const originalOccurrenceStart = new Date(editingOriginalDate + 'T00:00:00');
+      originalOccurrenceStart.setHours(master.start.getHours(), master.start.getMinutes(), 0, 0);
+
+      if (Math.abs(exception.start - originalOccurrenceStart) > 365 * 24 * 3600 * 1000) {
+        showError("Occurrences can't be moved more than a year away from the original date. You attempted to move it from " + formatDate(originalOccurrenceStart) + " to " + formatDate(exception.start) + ".");
+        return;
+      }
+    }  
+  }
+
+  _commitRecurrenceSaveNow(_pendingSave, scope);
+}
+ 
+/**
+ * Applies a validated set of field values to the events array.
+ * @param {object} fields  - { title, start, end, description, color, rrule }
+ * @param {'this'|'all'} scope
+ */
+function _commitRecurrenceSaveNow(fields, scope) {
+  const { title, start, end, description, color, rrule } = fields;
+ 
+  if (editingId) {
+    const idx = events.findIndex(ev => ev.id === editingId);
+ 
+    if (idx !== -1) {
+      if (scope === 'this' && editingOriginalDate) {
+        // Write a sparse exception
+        // JSON serialization in X-EXCEPTIONS.
+        const master = events[idx];
+        const exception = {};
+ 
+        if (title       !== master.title)       exception.title       = title;
+        if (description !== master.description) exception.description = description;
+        if (color       !== master.color)       exception.color       = color;
+ 
+        // Compare times by value, not reference
+        const masterOccStart = (() => {
+          const d = new Date(new Date(editingOriginalDate + 'T00:00:00'));
+          d.setHours(master.start.getHours(), master.start.getMinutes(), 0, 0);
+          return d;
+        })();
+        const masterDuration = (master.end ?? master.start) - master.start;
+        const masterOccEnd   = new Date(masterOccStart.getTime() + masterDuration);
+ 
+        if (start.getTime() !== masterOccStart.getTime()) exception.start = start;
+        if (end.getTime()   !== masterOccEnd.getTime())   exception.end   = end;
+ 
+        events[idx] = {
+          ...master,
+          exceptions: {
+            ...master.exceptions,
+            [editingOriginalDate]: exception
+          }
+        };
+      } else {
+        // Update the master. 
+        // Existing per-occurrence exceptions are preserved.
+        events[idx] = { ...events[idx], title, start, end, description, color, rrule };
+      }
+    }
+  } else {
+    // Brand new event
+    events.push(createEvent({ title, start, end, description, color, rrule }));
+  }
+ 
+  closeModal();
+  renderCalendar();
+  save();
+  refreshNotifs(events);
 }
 
 // ============================================================
@@ -1093,17 +1321,71 @@ function setStatus(message, type = '') {
 }
 
 // ============================================================
-// UTILITY
+// ERROR / CONFIRM DIALOGS
 // ============================================================
 
-function weekRangeLabel(date) {
-  const monday = startOfWeek(date);
-  const sunday = new Date(monday);
-  sunday.setDate(sunday.getDate() + 6);
-
-  const fmt = { month: 'short', day: 'numeric' };
-  return `${monday.toLocaleDateString('default', fmt)} - ${sunday.toLocaleDateString('default', fmt)}, ${sunday.getFullYear()}`;
+function showError(message) {
+  elErrorMessage.textContent = message;
+  elErrorOverlay.classList.add('open');
+  elErrorOverlay.setAttribute('aria-hidden', 'false');
+  $('error-ok').focus();
 }
+
+function closeError() {
+  elErrorOverlay.classList.remove('open');
+  elErrorOverlay.setAttribute('aria-hidden', 'true');
+}
+
+// confirm dialog - returns Promise
+let _resolveConfirm = null;
+
+function showConfirm(message) {
+  elConfirmMessage.textContent = message;
+  elConfirmOverlay.classList.add('open');
+  elConfirmOverlay.setAttribute('aria-hidden', 'false');
+  $('confirm-ok').focus();
+  return new Promise(resolve => { _resolveConfirm = resolve; });
+}
+
+function resolveConfirm(result) {
+  elConfirmOverlay.classList.remove('open');
+  elConfirmOverlay.setAttribute('aria-hidden', 'true');
+  if (_resolveConfirm) {
+    _resolveConfirm(result);
+    _resolveConfirm = null;
+  }
+}
+
+// ------------------------------------------------------------
+// UTILITY
+// ------------------------------------------------------------
+
+// keep event duration when changing start time in the modal --
+
+let _modalDuration = null;
+
+function rememberDuration() {
+  const start = combineDateAndTime(elStartDate.value, elStartTime.value);
+  const end = combineDateAndTime(elEndDate.value, elEndTime.value);
+
+  if (start && end) {
+    _modalDuration = end - start;
+  }
+}
+
+function shiftEndWithStart() {
+  if (!_modalDuration) return;
+
+  const start = combineDateAndTime(elStartDate.value, elStartTime.value);
+  if (!start) return;
+
+  const newEnd = new Date(start.getTime() + _modalDuration);
+
+  elEndDate.value = toDateInputValue(newEnd);
+  elEndTime.value = toTimeInputValue(newEnd);
+}
+
+// formating --------------------------------------------------
 
 /**
  * Formats a Date as a short time string, e.g. "9:30 AM".
@@ -1118,7 +1400,11 @@ function formatDate(date) {
   if (!date) return '';
   return date.toLocaleDateString('default', {
       weekday: 'short', year: 'numeric', month: 'long', day: 'numeric',
-    });}
+    }
+  );
+}
+
+// UI utilities -----------------------------------------------
 
 function layoutDayEvents(events) {
 
@@ -1180,4 +1466,51 @@ function layoutDayEvents(events) {
       cols: colCount
     }
   });
+}
+
+function weekRangeLabel(date) {
+  const monday = startOfWeek(date);
+  const sunday = new Date(monday);
+  sunday.setDate(sunday.getDate() + 6);
+
+  const fmt = { month: 'short', day: 'numeric' };
+  return `${monday.toLocaleDateString('default', fmt)} - ${sunday.toLocaleDateString('default', fmt)}, ${sunday.getFullYear()}`;
+}
+
+function formError(element) {
+    element.focus();
+    element.style.borderColor = 'var(--color-danger)';
+    element.style.color = 'var(--color-danger)';
+    setTimeout(() => { element.style.borderColor = ''; }, 2000);
+    setTimeout(() => { element.style.color = ''; }, 2000);
+}
+
+function updateNowIndicator() {
+  // Remove any existing indicator(s) from a previous tick
+  document.querySelectorAll('.week-now-indicator').forEach(el => el.remove());
+  document.querySelectorAll('.week-now-indicator-dot').forEach(el => el.remove());
+
+  // Only relevant in week/day view
+  if (currentView !== 'week' && currentView !== 'day') return;
+
+  const now = new Date();
+  const todayCol = document.querySelector('.week-day-col.today');
+  if (!todayCol) return; // today not in the current week
+
+  const fractionalHour = now.getHours() + now.getMinutes() / 60;
+  const topPx = fractionalHour * HOUR_H;
+
+  const line = document.createElement('div');
+  line.className = 'week-now-indicator';
+  line.style.top = `${topPx}px`;
+  todayCol.appendChild(line);
+
+  // Add the dot to the time gutter
+  const gutter = document.querySelector('.week-time-gutter');
+  if (gutter) {
+    const dot = document.createElement('div');
+    dot.className = 'week-now-indicator-dot';
+    dot.style.top = `${topPx}px`;
+    gutter.appendChild(dot);
+  }
 }

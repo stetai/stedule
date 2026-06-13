@@ -33,10 +33,11 @@
   <script type="module" src="js/app.js"></script>
   replaced by:
   -->
-  <script>
+  <!--script>
     const v = Date.now();
     document.write(`<script type="module" src="js/app.js?v=${v}"><\/script>`);
-  </script>
+  </script-->
+  <script type="module" src="js/app.js"></script>
 </head>
 
 <body>
@@ -127,9 +128,7 @@
   </div>
 
   <!-- =====================================================================
-    EVENT MODAL: hidden by default, shown when user clicks a day or event.
-    Keeping it in the HTML (rather than creating it in JS) is a deliberate
-    choice: it's easier to style and inspect. JS just toggles visibility.
+    EVENT MODAL
     ===================================================================== -->
   <div class="modal-overlay" id="modal-overlay" aria-hidden="true">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
@@ -145,18 +144,23 @@
           <input type="text" id="event-title" placeholder="Event name" autocomplete="off" enterkeyhint="done"/>
         </div>
 
-        <div class="field-group field-row">
-          <div class="field-group">
-            <label for="event-date">Date</label>
-            <input type="date" id="event-date" />
+        <div class="field-group">
+          <label for="event-start-date">Time</label>
+          <div class="field-group field-row">
+            <div class="field-group">
+              <input type="date" id="event-start-date" />
+            </div>
+            <div class="field-group">
+              <input type="time" id="event-start-time"/>
+            </div>
           </div>
-          <div class="field-group">
-            <label for="event-start-time">Start</label>
-            <input type="time" id="event-start-time" value="09:00" />
-          </div>
-          <div class="field-group">
-            <label for="event-end-time">End</label>
-            <input type="time" id="event-end-time" value="10:00" />
+          <div class="field-group field-row">
+            <div class="field-group">
+              <input type="date" id="event-end-date" />
+            </div>
+            <div class="field-group">
+              <input type="time" id="event-end-time"/>
+            </div>
           </div>
         </div>
 
@@ -227,6 +231,56 @@
     </div>
   </div>
 
+  <!-- Scope dialog -->
+  <div class="modal-overlay" id="scope-overlay" aria-hidden="true">
+    <div class="modal scope-dialog" role="dialog" aria-modal="true" aria-labelledby="scope-title">
+      <div class="modal-header">
+        <h2 id="scope-title">Edit recurring event</h2>
+      </div>
+      <div class="modal-body scope-dialog-body">
+        <p class="scope-description" id="scope-description">
+          This is a recurring event. Would you like to edit only this occurrence, or all events in the series?
+        </p>
+      </div>
+      <div class="modal-footer scope-dialog-footer">
+        <button class="btn btn-ghost" id="scope-cancel">Cancel</button>
+        <button class="btn btn-ghost" id="scope-this">This event</button>
+        <button class="btn btn-primary" id="scope-all">All events</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error dialog -->
+  <div class="modal-overlay" id="error-overlay" aria-hidden="true">
+    <div class="modal scope-dialog" role="alertdialog" aria-modal="true" aria-labelledby="error-title">
+      <div class="modal-header">
+        <h2 id="error-title">Error</h2>
+      </div>
+      <div class="modal-body scope-dialog-body">
+        <p class="scope-description" id="error-message"></p>
+      </div>
+      <div class="modal-footer scope-dialog-footer">
+        <button class="btn btn-primary" id="error-ok">Okay</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm dialog -->
+  <div class="modal-overlay" id="confirm-overlay" aria-hidden="true">
+    <div class="modal scope-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+      <div class="modal-header">
+        <h2 id="confirm-title">Confirm</h2>
+      </div>
+      <div class="modal-body scope-dialog-body">
+        <p class="scope-description" id="confirm-message"></p>
+      </div>
+      <div class="modal-footer scope-dialog-footer">
+        <button class="btn btn-ghost" id="confirm-cancel">Cancel</button>
+        <button class="btn btn-primary" id="confirm-ok" style="color: var(--color-danger); border-color: var(--color-danger); background: transparent;">Okay</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Quick add bar -->
   <div class="quick-add-bar" id="quick-add-bar">
     <div class="quick-add-time" id="quick-add-time"></div>
@@ -238,7 +292,6 @@
         <button class="btn btn-primary" id="quick-add-save">Done</button>
       </div>
     </div>
-
   </div>
 
   <!--
