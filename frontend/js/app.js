@@ -1488,6 +1488,7 @@ function formError(element) {
 function updateNowIndicator() {
   // Remove any existing indicator(s) from a previous tick
   document.querySelectorAll('.week-now-indicator').forEach(el => el.remove());
+  document.querySelectorAll('.week-now-indicator-dot').forEach(el => el.remove());
 
   // Only relevant in week/day view
   if (currentView !== 'week' && currentView !== 'day') return;
