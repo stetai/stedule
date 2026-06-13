@@ -44,6 +44,9 @@ let _weekDayNum = 7;
 let _firstWeekday = 0; //0 = "Mon", 1 = "Tue", etc
 let _seqcDayNum = 1;
 
+// UI 
+let _savedScrollTop = null;
+
 // ============================================================
 // DOM REFERENCES
 // ============================================================
@@ -261,6 +264,9 @@ async function save() {
 // ------------------------------------------------------------
 
 function navigate(direction) {
+
+  if (weekScrollEl) _savedScrollTop = weekScrollEl.scrollTop;
+
   if (currentView === 'month') {
     currentDate.setMonth(currentDate.getMonth() + direction);
   } else if (currentView === 'week') {
@@ -553,6 +559,12 @@ function renderWeekView() {
   scroll.appendChild(body);
   view.appendChild(scroll);
   elGrid.appendChild(view);
+
+  // Restore scroll position if one was saved
+  if (_savedScrollTop !== null) {
+    scroll.scrollTop = _savedScrollTop;
+    _savedScrollTop = null;
+  }
 }
 
 /* Determine week number of the current week*/
