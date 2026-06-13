@@ -867,9 +867,10 @@ select:focus {
   /* left: leave a 1px gap from the column edges */
   left: 1px;
   /* top, bottom: 1px gap to neighbouring events*/
-  top: 0.5px;
-  bottom: 0.5px;
+  top: 1px;
+  bottom: 1px;
   border-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-lg);
   padding: 1px 1px;
   padding-top: 1px;
   color: white;
@@ -924,6 +925,19 @@ select:focus {
   border-radius: var(--radius-sm);
   z-index: 2;
   touch-action: none;
+}
+
+/* Flatten top corners when event started on a previous day */
+.week-event.continues-from-prev {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+/* Flatten bottom corners when event runs past midnight */
+.week-event.continues-to-next {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom: none !important; 
 }
 
 .week-event-resize {

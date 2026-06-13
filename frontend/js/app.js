@@ -483,6 +483,13 @@ function renderWeekView() {
       if (endDate.getDate() === day.getDate()) {
         endH = endDate.getHours() + endDate.getMinutes() / 60;
       }
+      if (endDate.getDate() === day.getDate() + 1 && endDate.getHours() === 0 && endDate.getMinutes() === 0) {
+        endH = 23.99;
+      }
+
+      // multi-day?
+      const continuesFromPrev = ev.start.getDate() !== day.getDate() && ev.start < day;
+      const continuesToNext = endH === 24;
 
       // Clamp to a minimum visual height so short events are still clickable
       const duration = Math.max(endH - startH, 0.25);
@@ -493,6 +500,10 @@ function renderWeekView() {
  
       const chip = document.createElement('div');
       chip.className = 'week-event';
+
+      if (continuesFromPrev) chip.classList.add('continues-from-prev');
+      if (continuesToNext)   chip.classList.add('continues-to-next');
+
       chip.style.top        = `${startH * HOUR_H}px`;
       chip.style.height     = `${duration * HOUR_H}px`;
       chip.style.left       = `calc(${left}% + 1px)`;
@@ -506,7 +517,7 @@ function renderWeekView() {
  
       const timeEl = document.createElement('span');
       timeEl.className = 'week-event-time';
-      if(duration * HOUR_H > 32 /*&& there are no collisions*/){
+      if(duration * HOUR_H > 32 && !continuesFromPrev /*&& there are no collisions*/){
         timeEl.textContent = `${formatTime(ev.start)}`;//- ${formatTime(endDate)}`;
       }
  
