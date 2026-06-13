@@ -42,7 +42,7 @@
                        );
   --color-danger:      #ff2323;   /* clearer red for destructive actions */
 
-  /* Spacing — using a consistent scale prevents visual chaos */
+  /* Spacing */
   --space-xs:  4px;
   --space-sm:  8px;
   --space-md:  16px;
@@ -224,6 +224,17 @@ select {
   font-weight: 600;
 }
 
+/* radio button */
+.radio-label {
+  vertical-align: middle;
+  font-size: 1rem;
+  font-weight: normal;
+  font-style: normal;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--color-text);
+}
+
 /* ============================================================
    CALENDAR LAYOUT
 ============================================================ */
@@ -343,6 +354,7 @@ select {
    MODAL
 ============================================================ */
 
+.settings-overlay,
 .modal-overlay {
   position: fixed;    /* fixed = relative to viewport, not the document */
   inset: 0;           /* shorthand for top:0, right:0, bottom:0, left:0 */
@@ -356,6 +368,7 @@ select {
   transition: opacity 0.15s;
 }
 
+.settings-overlay.open,
 .modal-overlay.open {
   opacity: 1;
   pointer-events: all;

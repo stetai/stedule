@@ -193,7 +193,7 @@
     Settings
   --------------------------------------------------------- -->
 
-  <div class="modal-overlay" id="modal-overlay" aria-hidden="true">
+  <div class="settings-overlay" id="settings-overlay" aria-hidden="true">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
 
       <div class="modal-header">
@@ -226,16 +226,18 @@
 
         <div class="field-group">
           <label for="setting-theme">Theme</label>
-          <input type="radio" id="dark" name="theme" value="dark">
-          <label for="dark">Dark (You don't have a choice)</label><br>
+          <div>
+            <input type="radio" id="dark" name="theme" value="dark">          <label class="radio-label" for="dark">Dark (You don't have a choice)</label><br>
+            <input type="radio" id="light" name="theme" value="light">          <label class="radio-label" for="light">Light (Coming soon?)</label><br>
+          </div>
         </div>
 
       </div>
 
       <div class="modal-footer">
         <div class="modal-footer-right">
-          <button class="btn btn-ghost" id="modal-cancel">Cancel</button>
-          <button class="btn btn-primary" id="modal-save">Save</button>
+          <button class="btn btn-ghost" id="settings-cancel">Cancel</button>
+          <button class="btn btn-primary" id="settings-save">Save</button>
         </div>
       </div>
     </div>

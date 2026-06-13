@@ -20,6 +20,8 @@ import {
 // APPLICATION STATE
 // ============================================================
 
+let _settingChanged=false;        // Track whether settings have been changed since opening them
+
 let events         = [];          // All parsed event objects
 let currentDate    = new Date();  // The date the calendar is currently showing
 let currentView    = 'week';      // 'month' | 'week' | 'day' (week/day = future work)
@@ -40,12 +42,12 @@ let startY         = 0;           //|Default values for quickadd outline
 let startHeight    = 0;           //|
 
 //future dynamic access
-let _weekDayNum = 7;
-let _firstWeekday = 0; //0 = "Mon", 1 = "Tue", etc
-let _seqcDayNum = 1;
+let _weekDayNum    = 7;
+let _firstWeekday  = 0; //0 = "Mon", 1 = "Tue", etc
+let _seqcDayNum    = 1;
 
 // UI 
-let _savedScrollTop = null;
+let _savedScrollTop= null;
 
 // ============================================================
 // DOM REFERENCES
@@ -57,6 +59,7 @@ const elGrid       = $('calendar-grid');
 const elPeriod     = $('current-period');
 const elStatus     = $('status-bar');
 const elOverlay    = $('modal-overlay');
+const elSettingsOverlay = $('settings-overlay');
 const elModalTitle = $('modal-title');
 const elTitle      = $('event-title');
 const elWeekdays   = $('weekday-headers');
@@ -104,6 +107,7 @@ document.addEventListener('DOMContentLoaded', init);
 
 function init() {
   $('btn-open').addEventListener('click', handleOpenFile);
+  $('btn-settings').addEventListener('click', openSettingsModal);
   $('btn-prev').addEventListener('click', () => navigate(-1));
   $('btn-next').addEventListener('click', () => navigate(+1));
   $('btn-today').addEventListener('click', goToToday);
@@ -114,6 +118,15 @@ function init() {
     switchView(btn.dataset.view);
   });
 
+  // Settings
+  $('settings-cancel').addEventListener('click', confirmCloseSettings)
+
+  $('settings-save').addEventListener('click', () => {
+    setStatus("Settings would have been saved if backend existed.", "saved");
+    closeSettings();
+  })
+
+  // Add Event
   document.addEventListener('click', (e) => {
     if (e.target.closest('.week-day-col')) return;
     if (e.target.closest('.quick-add-bar')) return;
@@ -225,6 +238,39 @@ function init() {
 
   updateNowIndicator();
   setInterval(updateNowIndicator, 2 * 1000);
+}
+
+// ------------------------------------------------------------
+// Settings
+// ------------------------------------------------------------
+function openSettingsModal() {
+  _settingChanged = false;
+
+  // load current settings
+  // files
+  // categories
+  // theme
+  // notifications
+  
+  elSettingsOverlay.classList.add('open');
+  elSettingsOverlay.setAttribute('aria-hidden', 'false');
+}
+
+async function confirmCloseSettings() {
+  if (_settingChanged) {
+    if (!await showConfirm("You have made changes to your settings. Do you really want to exit without saving them?")) return;
+  }
+
+  closeSettings();
+}
+
+async function closeSettings() {
+  if (document.activeElement && elOverlay.contains(document.activeElement)) {
+    document.activeElement.blur();
+  }
+  
+  elSettingsOverlay.classList.remove('open');
+  elSettingsOverlay.setAttribute('aria-hidden', 'true');
 }
 
 // ------------------------------------------------------------
@@ -1057,9 +1103,7 @@ function openModal() {
 
 function closeModal() {
 
-  if (document.activeElement && elOverlay.contains
-    // prevent aria-hidden warning in Chrome
-    (document.activeElement)) {
+  if (document.activeElement && elOverlay.contains(document.activeElement)) {
     document.activeElement.blur();
   }
   
