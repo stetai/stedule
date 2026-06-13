@@ -876,9 +876,9 @@ select:focus {
 /* Dot in the time gutter, aligned with the indicator line */
 .week-now-indicator-dot {
   position: absolute;
-  right: 2px;
-  width: 4px;
-  height: 4px;
+  right: 1px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--color-today);
   transform: translateY(-50%);
