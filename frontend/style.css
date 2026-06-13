@@ -896,7 +896,7 @@ select:focus {
   top: 1px;
   bottom: 1px;
   border-radius: var(--radius-sm);
-  border-bottom-right-radius: var(--radius-lg);
+  border-bottom-right-radius: var(--radius-md);
   padding: 1px 1px;
   padding-top: 1px;
   color: white;
