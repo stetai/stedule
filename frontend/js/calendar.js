@@ -220,6 +220,33 @@ export function parseICS(rawText) {
   });
 }
 
+/**
+ * Checks for common problems like overlapping events, malformed RRULEs, etc. 
+ * Display warnings in the status bar if any issues are found. 
+ * Make warnings descriptive.
+ * @param {*} events 
+ * @returns 
+ */
+function checkQuality(events) {
+
+  recurringEvents = events.filter(e => e.rrule);
+
+  // Check if an exception is moved further than a year from the original date (not supported by notifications scheduling)
+  for (const recurring of recurringEvents) {
+    for (const [originalDate, exception] of Object.entries(recurring.exceptions)) {
+      if (exception.deleted) continue;
+
+      const original = new Date(originalDate + 'T00:00:00');
+      const exceptionStart = new Date(exception.start);
+
+      if (Math.abs(exceptionStart.getTime() - original.getTime()) > 365 * 24 * 60 * 60 * 1000) {
+        //setStatus(`Warning: Bad recurrent event: An exception (at ${exception.start}) for event "${exception.title}" is moved more than a year from the original date. This may cause notifications for this occurrence to not work.`, 'warning'); //TODO: refactor to have access to setStatus
+        return;
+      }
+    }
+  }
+}
+
 // ============================================================
 // SERIALIZATION
 // ============================================================
