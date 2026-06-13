@@ -83,6 +83,11 @@ const elQuickSave  = $('quick-add-save');
 const elScopeOverlay = $('scope-overlay');
 const elScopeDesc    = $('scope-description');
 
+const elErrorOverlay   = $('error-overlay');
+const elErrorMessage   = $('error-message');
+const elConfirmOverlay = $('confirm-overlay');
+const elConfirmMessage = $('confirm-message');
+
 // ============================================================
 // INITIALIZATION
 // ============================================================
@@ -164,8 +169,13 @@ function init() {
 
   // Scope dialog buttons
   $('scope-cancel').addEventListener('click', closeScopeDialog);
-  $('scope-this').addEventListener('click',   () => commitSave('this'));
-  $('scope-all').addEventListener('click',    () => commitSave('all'));
+  $('scope-this').addEventListener('click',   () => commitRecurrenceSave('this'));
+  $('scope-all').addEventListener('click',    () => commitRecurrenceSave('all'));
+
+  // Error/confirm dialog buttons
+  $('error-ok').addEventListener('click', closeError);
+  $('confirm-cancel').addEventListener('click', () => resolveConfirm(false));
+  $('confirm-ok').addEventListener('click',     () => resolveConfirm(true));
 
   // Close modal when clicking the dark overlay (outside the modal box)
   elOverlay.addEventListener('click', (e) => {
@@ -1100,10 +1110,10 @@ function handleModalSave() {
   }
 
   // Non-recurring
-  _commitSaveNow({title, start, end, description: elDesc.value, color: elColor.value, rrule}, 'all');
+  _commitRecurrenceSaveNow({title, start, end, description: elDesc.value, color: elColor.value, rrule}, 'all');
 }
 
-function handleModalDelete() {
+async function handleModalDelete() {
   if (!editingId) return;
 
   if (editingOriginalDate) {
@@ -1116,7 +1126,9 @@ function handleModalDelete() {
     return;
   }
 
-  if (!confirm('Delete this event?')) return;
+  if (!await showConfirm(
+    `Delete ${elTitle.value}?\n(${elStartDate.value}, ${elStartTime.value} — ${elEndDate.value === elStartDate.value ? '' : elEndDate.value + ', '}${elEndTime.value})`
+  )) return;
 
   events = events.filter(ev => ev.id !== editingId);
 
@@ -1147,10 +1159,10 @@ function closeScopeDialog() {
  * Called when the user picks a scope in the scope dialog.
  * @param {'this'|'all'} scope
  */
-function commitSave(scope) {
+async function commitRecurrenceSave(scope) {
   closeScopeDialog();
  
-  // --- DELETE path ---
+  // --- delete ---
   if (_pendingSave === null) {
     if (scope === 'this') {
       // Mark this single occurrence as deleted in the master's exceptions map.
@@ -1166,7 +1178,7 @@ function commitSave(scope) {
       }
     } else {
       // Delete the entire series (master + all occurrences)
-      if (!confirm('Delete all events in this series?')) return;
+      if (!await showConfirm(`Delete all events in the series ${elTitle.value}?`)) return;
       events = events.filter(ev => ev.id !== editingId);
     }
 
@@ -1179,8 +1191,25 @@ function commitSave(scope) {
     return;
   }
  
-  // --- SAVE path ---
-  _commitSaveNow(_pendingSave, scope);
+  // --- save ---
+  if (scope === 'this'){
+    const idx = events.findIndex(ev => ev.id === editingId);
+    if (idx !== -1) {
+      // Write a sparse exception with the new values for this occurrence
+      const master = events[idx];
+      const exception = { ..._pendingSave };
+
+      const originalOccurrenceStart = new Date(editingOriginalDate + 'T00:00:00');
+      originalOccurrenceStart.setHours(master.start.getHours(), master.start.getMinutes(), 0, 0);
+
+      if (Math.abs(exception.start - originalOccurrenceStart) > 365 * 24 * 3600 * 1000) {
+        showError("Occurrences can't be moved more than a year away from the original date. You attempted to move it from " + formatDate(originalOccurrenceStart) + " to " + formatDate(exception.start) + ".");
+        return;
+      }
+    }  
+  }
+
+  _commitRecurrenceSaveNow(_pendingSave, scope);
 }
  
 /**
@@ -1188,7 +1217,7 @@ function commitSave(scope) {
  * @param {object} fields  - { title, start, end, description, color, rrule }
  * @param {'this'|'all'} scope
  */
-function _commitSaveNow(fields, scope) {
+function _commitRecurrenceSaveNow(fields, scope) {
   const { title, start, end, description, color, rrule } = fields;
  
   if (editingId) {
@@ -1260,6 +1289,42 @@ function setStatus(message, type = '') {
         : 'No file open.';
       elStatus.className = 'status-bar';
     }, 3000);
+  }
+}
+
+// ============================================================
+// ERROR / CONFIRM DIALOGS
+// ============================================================
+
+function showError(message) {
+  elErrorMessage.textContent = message;
+  elErrorOverlay.classList.add('open');
+  elErrorOverlay.setAttribute('aria-hidden', 'false');
+  $('error-ok').focus();
+}
+
+function closeError() {
+  elErrorOverlay.classList.remove('open');
+  elErrorOverlay.setAttribute('aria-hidden', 'true');
+}
+
+// confirm dialog - returns Promise
+let _resolveConfirm = null;
+
+function showConfirm(message) {
+  elConfirmMessage.textContent = message;
+  elConfirmOverlay.classList.add('open');
+  elConfirmOverlay.setAttribute('aria-hidden', 'false');
+  $('confirm-ok').focus();
+  return new Promise(resolve => { _resolveConfirm = resolve; });
+}
+
+function resolveConfirm(result) {
+  elConfirmOverlay.classList.remove('open');
+  elConfirmOverlay.setAttribute('aria-hidden', 'true');
+  if (_resolveConfirm) {
+    _resolveConfirm(result);
+    _resolveConfirm = null;
   }
 }
 

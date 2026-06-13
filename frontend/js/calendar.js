@@ -231,7 +231,8 @@ function checkQuality(events) {
 
   recurringEvents = events.filter(e => e.rrule);
 
-  // Check if an exception is moved further than a year from the original date (not supported by notifications scheduling)
+  // Check if an exception is moved further than a year from the original date 
+  // (not supported by notifications scheduling)
   for (const recurring of recurringEvents) {
     for (const [originalDate, exception] of Object.entries(recurring.exceptions)) {
       if (exception.deleted) continue;

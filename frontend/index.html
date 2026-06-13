@@ -224,6 +224,37 @@
     </div>
   </div>
 
+  <!-- Error dialog -->
+  <div class="modal-overlay" id="error-overlay" aria-hidden="true">
+    <div class="modal scope-dialog" role="alertdialog" aria-modal="true" aria-labelledby="error-title">
+      <div class="modal-header">
+        <h2 id="error-title">Error</h2>
+      </div>
+      <div class="modal-body scope-dialog-body">
+        <p class="scope-description" id="error-message"></p>
+      </div>
+      <div class="modal-footer scope-dialog-footer">
+        <button class="btn btn-primary" id="error-ok">Okay</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm dialog -->
+  <div class="modal-overlay" id="confirm-overlay" aria-hidden="true">
+    <div class="modal scope-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+      <div class="modal-header">
+        <h2 id="confirm-title">Confirm</h2>
+      </div>
+      <div class="modal-body scope-dialog-body">
+        <p class="scope-description" id="confirm-message"></p>
+      </div>
+      <div class="modal-footer scope-dialog-footer">
+        <button class="btn btn-ghost" id="confirm-cancel">Cancel</button>
+        <button class="btn btn-primary" id="confirm-ok" style="color: var(--color-danger); border-color: var(--color-danger); background: transparent;">Okay</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Quick add bar -->
   <div class="quick-add-bar" id="quick-add-bar">
     <div class="quick-add-time" id="quick-add-time"></div>
@@ -235,7 +266,6 @@
         <button class="btn btn-primary" id="quick-add-save">Done</button>
       </div>
     </div>
-
   </div>
 
   <!--
