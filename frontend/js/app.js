@@ -5,7 +5,7 @@
 const v = new URL(import.meta.url).search;
 
 import {
-  openFile, writeFile, reloadFile, hasFileOpen, getFileName, canWriteInPlace
+  openFile, writeFile, reloadFile, hasFileOpen, getFileName, isFirefox
 } from './storage.js';
 
 import {
@@ -236,7 +236,7 @@ async function handleOpenFile() {
     const raw = await openFile();
     events = parseICS(raw);
     renderCalendar();
-    const saveNote = canWriteInPlace() ? '' : ' · Firefox: saves will download a new file';
+    const saveNote = !isFirefox()  ? '' : ' · Firefox: saves will download a new file';
     setStatus(`Loaded: ${getFileName()} — ${events.length} event(s)${saveNote}`, 'saved');
 
     refreshNotifs(events);

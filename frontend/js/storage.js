@@ -15,13 +15,13 @@
  */
 
 // Detect Tauri
-const isTauri = !!window.__TAURI__?.core;
+const _isTauri = !!window.__TAURI__?.core;
 //const isTauri = '__TAURI__' in window;
 //const isTauri = window.__TAURI__ !== undefined;
 
 // Detect capability (Distinguish between Chromium, Firefox)
-const isFirefox = CSS.supports('-moz-appearance', 'none'); // reliable CSS-based detection
-const hasFileSystemAccess = !isTauri && !isFirefox && 'showOpenFilePicker' in window;
+const _isFirefox = CSS.supports('-moz-appearance', 'none'); // reliable CSS-based detection
+const hasFileSystemAccess = !_isTauri && !_isFirefox && 'showOpenFilePicker' in window;
 
 let _fileHandle = null; // Chromium: FileSystemFileHandle
 let _fileName   = null; // Both: display name
@@ -38,7 +38,7 @@ let _fileName   = null; // Both: display name
  */
 export async function openFile() {
 
-  if (isTauri) {
+  if (_isTauri) {
     
     const { invoke } = window.__TAURI__.core;
 
@@ -58,7 +58,7 @@ export async function openFile() {
 
   if (hasFileSystemAccess) {
     return _openChromium();
-  } else if (isFirefox){
+  } else if (_isFirefox){
     return _openFirefox();
   } else {
     throw new Error("Unsupported platform.")
@@ -95,7 +95,7 @@ export async function reloadFile() {
 export async function writeFile(content) {
   if (!_fileName) throw new Error('No file is open. Call openFile() first.');
 
-  if (isTauri) {
+  if (_isTauri) {
     const { writeTextFile } = window.__TAURI__.fs;
 
     if(!_fileHandle) {
@@ -108,7 +108,7 @@ export async function writeFile(content) {
  
   if (hasFileSystemAccess) {
     return _writeChromium(content);
-  } else if (isFirefox){
+  } else if (_isFirefox){
     return _writeFirefox(content);
   } else {
     throw new Error("Unsupported platform.")
@@ -134,12 +134,12 @@ export function hasFileOpen() {
 }
 
 /**
- * Returns true if the browser supports in-place file writing.
+ * Returns true if the browser prevents in-place file writing.
  * app.js uses this to show a notice to Firefox users about download saves.
  * @returns {boolean}
  */
-export function canWriteInPlace() {
-  return hasFileSystemAccess;
+export function isFirefox() {
+  return _isFirefox;
 }
 
 // -- Chromium implementation --------------------------------------------
