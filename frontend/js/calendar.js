@@ -11,6 +11,12 @@ if (!ICAL) {
  *   Notifications
  * ########################################################## */
 
+/**
+ * Schedules notifications for the next 400 occurrences of the given events.
+ * Existing notifications are cancelled first, so this can be safely called multiple times.
+ * @param {*} events 
+ * @returns none
+ */
 export async function refreshNotifs(events) {
   if (!window.__TAURI__) return;
 
@@ -113,8 +119,9 @@ function occurrencesInWindow(ev, windowStart, windowEnd) {
   const iter      = rule.iterator(startTime);
   const results   = [];
 
+  // look only one yr ahead
   const MS_PER_DAY = 24 * 60 * 60 * 1000;
-  const breakGuard = new Date(windowEnd.getTime() + 14 * MS_PER_DAY);
+  const breakGuard = new Date(windowEnd.getTime() + 365 * MS_PER_DAY);
 
   let next;
   while ((next = iter.next())) {
@@ -325,6 +332,8 @@ export function eventsOnDay(events, date) {
       for (const [originalKey, exception] of Object.entries(ev.exceptions)) {
         if (exception.deleted) continue;
         if (!exception.start) continue; 
+
+        if (originalKey === toDateInputValue(date)) continue;
  
         const resolvedStart = new Date(exception.start);
         if (!isSameDay(resolvedStart, date)) continue;
@@ -487,7 +496,7 @@ function recursOnDay(ev, date) {
 
       const originalDate = toDateInputValue(jsStart);
       const exception = ev.exceptions?.[originalDate];
-      if (ev.exception?.deleted) continue;
+      if (exception?.deleted) continue;
 
       // exception moved to another day
       if (exception?.start && !isSameDay(new Date(exception.start), jsStart)) continue;
