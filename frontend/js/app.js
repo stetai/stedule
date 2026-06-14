@@ -135,16 +135,26 @@ async function init() {
   $('settings-cancel').addEventListener('click', confirmCloseSettings)
 
   $('settings-save').addEventListener('click', async () => {
-    const selectedTheme = document.querySelector('input[name="theme"]:checked')?.value;
-    if (selectedTheme) setSetting('theme', selectedTheme);
-
-    // Persist if we have a settings path (Tauri only)
     if (_isTauri) {
       const settingsPath = await getLocalSetting('settingsPath');
-      if (settingsPath) await saveSyncedSettings(settingsPath);
+      if (!settingsPath) {// No settings file loaded
+        closeSettings();
+        setStatus('No settings file loaded. Open a .json file in Settings first.', 'error');
+        return;   //exit before saving or claiming success
+      }
+
+      const selectedTheme = document.querySelector('input[name="theme"]:checked')?.value;
+      if (selectedTheme) setSetting('theme', selectedTheme);
+
+      await saveSyncedSettings(settingsPath);
+      setStatus('Settings saved.', 'saved');
+    } else {
+      // Browser: settings are in-memory only (no sync file)
+      const selectedTheme = document.querySelector('input[name="theme"]:checked')?.value;
+      if (selectedTheme) setSetting('theme', selectedTheme);
+      setStatus('Settings saved (in-memory only).', 'saved');
     }
 
-    setStatus('Settings saved.', 'saved');
     closeSettings();
   });
 

@@ -47,7 +47,7 @@ export async function saveLocalSetting(key, value) {
 // -- synced settings -----------------------------------------
 
 const DEFAULTS = {
-  theme: 'auto',               // 'light' | 'dark' | 'auto'
+  theme: 'light',               // 'light' | 'dark'
   defaultView: 'week',
   icsPath:null,
   notifications: {
