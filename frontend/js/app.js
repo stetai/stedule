@@ -503,7 +503,7 @@ function renderWeekView() {
       const continuesToNext = endH === 24;
 
       // Clamp to a minimum visual height so short events are still clickable
-      const duration = Math.max(endH - startH, 0.25);
+      const duration = Math.max(endH - startH, 0.5);
 
       const baseWidth = 100 / item.cols;
       const width = baseWidth * item.span;

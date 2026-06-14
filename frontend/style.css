@@ -902,7 +902,7 @@ select:focus {
   color: white;
   cursor: pointer;
   overflow: hidden;
-  min-height: 18px;
+  min-height: 5px;
   z-index: 1;
   box-sizing: border-box;
   display: flex;
