@@ -71,7 +71,11 @@ export async function loadSyncedSettings(settingsPath) {
     _syncedSettings = { ...DEFAULTS, ...JSON.parse(raw) };
   } catch {
     _syncedSettings = { ...DEFAULTS };
-    await saveSyncedSettings(settingsPath);
+    try {
+      await saveSyncedSettings(settingsPath);
+    } catch (writeErr) {
+      console.warn('Could not write default settings:', writeErr);
+    }
   }
 
   // TODO: load overrides from local store here:

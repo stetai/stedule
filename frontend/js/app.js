@@ -15,7 +15,7 @@ import {
 } from './settings.js';
 
 import { 
-  openFile, writeFile, openFileByPath, getFilePath, reloadFile, hasFileOpen, getFileName, isFirefox
+  openFile, writeFile, openFileByPath, getFilePath, reloadFile, hasFileOpen, getFileName, isFirefox, openSettingsFile
 } from './storage.js';
 
 import {
@@ -69,7 +69,6 @@ const elGrid       = $('calendar-grid');
 const elPeriod     = $('current-period');
 const elStatus     = $('status-bar');
 const elOverlay    = $('modal-overlay');
-const elSettingsOverlay = $('settings-overlay');
 const elModalTitle = $('modal-title');
 const elTitle      = $('event-title');
 const elWeekdays   = $('weekday-headers');
@@ -81,6 +80,10 @@ const elRepeat     = $('event-repeat');
 const elDesc       = $('event-description');
 const elColor      = $('event-color');
 const elDeleteBtn  = $('modal-delete');
+
+const elSettingsOverlay  = $('settings-overlay');
+const elSettingsClose    = $('settings-modal-close');
+const elSettingsPathText = $('setting-settings-path');
 
 const elRepeatIntervalGroup = $('repeat-interval-group');
 const elRepeatEndGroup = $('repeat-end-group');
@@ -145,6 +148,10 @@ async function init() {
     closeSettings();
   });
 
+  $('setting-settings-add').addEventListener('click', async () => {
+    await handleOpenSettings();
+  });
+
   $('setting-files-add').addEventListener('click', async () => {
     await handleOpenFile();
   });
@@ -182,15 +189,24 @@ async function init() {
   // move quick add along with keyboard
   if (window.visualViewport) {
     const updateQuickBarOffset = () => {
+
+      if (elSettingsOverlay.classList.contains('open')) return;
+      if (elOverlay.classList.contains('open')) return;
+
       const vv = window.visualViewport;
       const offset = window.innerHeight - (vv.height + vv.offsetTop);
-      elQuickBar.style.bottom = `${Math.max(offset, 0)}px`;
+      const safePx = Math.min(offset, window.innerHeight * 0.5);
+      elQuickBar.style.bottom = `${safePx}px`;
 
       if (weekScrollEl) {
         const bottomOffset = parseFloat(elQuickBar.style.bottom) || 0;
         const quickBarTop  = window.innerHeight - bottomOffset - elQuickBar.offsetHeight;
         const scrollTop    = weekScrollEl.getBoundingClientRect().top;
-        weekScrollEl.style.maxHeight = `${quickBarTop - scrollTop}px`; 
+        const newHeight    = quickBarTop - scrollTop;
+        // Only apply if it's a sensible positive value.
+        if (newHeight > 50) {
+          weekScrollEl.style.maxHeight = `${newHeight}px`;
+        }
       }
     };
 
@@ -258,17 +274,23 @@ async function init() {
   renderCalendar();
   renderWeekdayHeader(_firstWeekday);
   if (_isTauri) {
-    const icsPath      = await getLocalSetting('icsPath');
     const settingsPath = await getLocalSetting('settingsPath');
+    if (settingsPath) {
+      try {
+        await loadSyncedSettings(settingsPath);
+      } catch {
+        setStatus('Saved file unavailable. Please re-open manually.', 'error');
+      }
+    }
 
-    if (icsPath && settingsPath) {
+    const icsPath = await getLocalSetting('icsPath');
+    if (icsPath) {
       try {
         const raw = await openFileByPath(icsPath);
-        await loadSyncedSettings(settingsPath);
         events = parseICS(raw);
         renderCalendar();
       } catch {
-        setStatus('Saved file unavailable — please re-open manually.', 'error');
+        setStatus('Calendar file unavailable. Please re-open manually.', 'error');
       }
     }
   }
@@ -279,15 +301,44 @@ async function init() {
 // ------------------------------------------------------------
 // Settings
 // ------------------------------------------------------------
-function openSettingsModal() {
+
+async function handleOpenSettings() {
+  try {
+    let settingsPath;
+
+    if (_isTauri) {
+      settingsPath = await openSettingsFile();
+      if(!settingsPath) return;
+    } else {
+      setStatus('Settings file sync is only available in the app.', 'error');
+      return;
+    }
+
+    await loadSyncedSettings(settingsPath);          
+    await saveLocalSetting('settingsPath', settingsPath); // persist path locally
+
+    _updateSettingsPathDisplay(settingsPath);
+    setStatus("Loaded: Settings", 'saved');
+
+  } catch (err) {
+    if (err.name === 'AbortError') return;
+    setStatus(`Error opening settings: ${err?.message ?? String(err)}`, 'error');
+  }
+}
+
+async function openSettingsModal() {
   _settingChanged = false;
 
   // load current settings
+  // settings
+  const settingsPath = _isTauri ? await getLocalSetting('settingsPath') : null;
+  _updateSettingsPathDisplay(settingsPath);
+
   // files
   // categories
 
   // theme
-  const theme = setSetting('theme');
+  const theme = getSetting('theme');
   const radio = document.querySelector(`input[name="theme"][value="${theme}"]`);
   if (radio) radio.checked = true;
 
@@ -306,12 +357,14 @@ async function confirmCloseSettings() {
 }
 
 async function closeSettings() {
-  if (document.activeElement && elOverlay.contains(document.activeElement)) {
+  if (document.activeElement && elSettingsOverlay.contains(document.activeElement)) {
     document.activeElement.blur();
   }
   
   elSettingsOverlay.classList.remove('open');
   elSettingsOverlay.setAttribute('aria-hidden', 'true');
+
+    elQuickBar.style.bottom = '0px';
 }
 
 // ------------------------------------------------------------
@@ -1449,6 +1502,18 @@ function resolveConfirm(result) {
 // ------------------------------------------------------------
 // UTILITY
 // ------------------------------------------------------------
+
+// settings
+
+function _updateSettingsPathDisplay(path) {
+  if (!path) {
+    elSettingsPathText.style.display = 'none';
+    elSettingsPathText.textContent = '';
+  } else {
+    elSettingsPathText.textContent = path;
+    elSettingsPathText.style.display = '';
+  }
+}
 
 // keep event duration when changing start time in the modal --
 

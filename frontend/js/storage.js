@@ -73,6 +73,26 @@ export async function openFile() {
     throw new Error("Unsupported platform.")
   }
 }
+/**
+ * Opens settings file
+ */
+export async function openSettingsFile() {
+  const { open: tauriOpen, save: tauriSave } = await _getTauriDialog();
+
+  const isAndroid = navigator.userAgent.includes('Android');
+
+  if (isAndroid) {
+    return await tauriSave({
+      filters: [{name: 'JSON', extensions:['json']}],
+      defaultPath: 'stedule-settings.json',
+    });
+  } else {
+    return await tauriOpen({
+      filters: [{name: 'JSON', extensions:['json']}],
+      multiple: false,
+    });
+  }
+}
 
 /**
  * Opens a file directly by its saved path without the picker dialog.
@@ -85,7 +105,11 @@ export async function openFile() {
 export async function openFileByPath(path) {
   const { readTextFile } = await _getTauriFs();
   _fileHandle = path;
-  _fileName   = path.split('/').pop();      // last segment as display name
+  if (path.includes("%2F")) {
+    _fileName = path.split("%2F").pop();
+  } else {
+    _fileName   = path.split('/').pop();      // last segment as display name
+  }
   return readTextFile(path);
 }
 
