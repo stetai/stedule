@@ -49,6 +49,7 @@ export async function saveLocalSetting(key, value) {
 const DEFAULTS = {
   theme: 'auto',               // 'light' | 'dark' | 'auto'
   defaultView: 'week',
+  icsPath:null,
   notifications: {
     enabled: false,
     minutesBefore: 10,

@@ -283,12 +283,13 @@ async function init() {
       }
     }
 
-    const icsPath = await getLocalSetting('icsPath');
+    const icsPath = getSetting('icsPath') ?? await getLocalSetting('icsPath');
     if (icsPath) {
       try {
         const raw = await openFileByPath(icsPath);
         events = parseICS(raw);
         renderCalendar();
+        setStatus(`Loaded: ${getFileName()} — ${events.length} event(s)`, 'saved');
       } catch {
         setStatus('Calendar file unavailable. Please re-open manually.', 'error');
       }
@@ -379,7 +380,13 @@ async function handleOpenFile() {
 
     if (_isTauri) {
       const path = getFilePath();
-      if (path) await saveLocalSetting('icsPath', path);
+      if (path) {
+        await saveLocalSetting('icsPath', path);
+
+        const settingsPath = await getLocalSetting('settingsPath');
+        setSetting('icsPath', path);
+        if (settingsPath) await saveSyncedSettings(settingsPath);
+      }
     }
 
     const saveNote = !isFirefox()  ? '' : ' · Firefox: saves will download a new file';
