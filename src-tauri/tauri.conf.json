@@ -3,9 +3,10 @@
   "productName": "Stedule",
   "identifier": "com.stetai.stedule",
   "build": {
-    "beforeDevCommand": null,
-    "beforeBuildCommand": null,
-    "frontendDist": "../frontend"
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://$TAURI_DEV_HOST:5173",
+    "frontendDist": "../dist"
   },
   "app": {
     "withGlobalTauri": true,
@@ -17,7 +18,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost ws://localhost:5173"
     }
   },
   "bundle": {
