@@ -9,7 +9,9 @@ const v = new URL(import.meta.url).search;
 const _isTauri = !!window.__TAURI__?.core;
 
 import {
-  loadSyncedSettings, getLocalSetting, saveSyncedSettings
+  loadSyncedSettings, saveSyncedSettings,
+  getLocalSetting, saveLocalSetting,
+  getSetting, setSetting
 } from './settings.js';
 
 import { 
@@ -129,10 +131,23 @@ async function init() {
   // Settings
   $('settings-cancel').addEventListener('click', confirmCloseSettings)
 
-  $('settings-save').addEventListener('click', () => {
-    setStatus("Settings would have been saved if backend existed.", "saved");
+  $('settings-save').addEventListener('click', async () => {
+    const selectedTheme = document.querySelector('input[name="theme"]:checked')?.value;
+    if (selectedTheme) setSetting('theme', selectedTheme);
+
+    // Persist if we have a settings path (Tauri only)
+    if (_isTauri) {
+      const settingsPath = await getLocalSetting('settingsPath');
+      if (settingsPath) await saveSyncedSettings(settingsPath);
+    }
+
+    setStatus('Settings saved.', 'saved');
     closeSettings();
-  })
+  });
+
+  $('setting-files-add').addEventListener('click', async () => {
+    await handleOpenFile();
+  });
 
   // Add Event
   document.addEventListener('click', (e) => {
@@ -270,7 +285,12 @@ function openSettingsModal() {
   // load current settings
   // files
   // categories
+
   // theme
+  const theme = setSetting('theme');
+  const radio = document.querySelector(`input[name="theme"][value="${theme}"]`);
+  if (radio) radio.checked = true;
+
   // notifications
   
   elSettingsOverlay.classList.add('open');
@@ -300,16 +320,15 @@ async function closeSettings() {
 
 async function handleOpenFile() {
   try {
-    const path = getFilePath();
-
-    if (path) {
-      await 
-      await loadSyncedSettings(path);
-    }
-
-    const raw = await openFile();
+    const raw = await openFile(); //set _fileHandle internally
     events = parseICS(raw);
     renderCalendar();
+
+    if (_isTauri) {
+      const path = getFilePath();
+      if (path) await saveLocalSetting('icsPath', path);
+    }
+
     const saveNote = !isFirefox()  ? '' : ' · Firefox: saves will download a new file';
     setStatus(`Loaded: ${getFileName()} — ${events.length} event(s)${saveNote}`, 'saved');
 

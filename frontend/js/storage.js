@@ -57,12 +57,12 @@ export async function openFile() {
       throw new DOMException('User cancelled', 'AbortError');
     }
 
-    const { tauriFs}  = _getTauriFs();
+    const { readTextFile }  = await _getTauriFs();
 
     _fileName = path.split("%2F").pop();
     _fileHandle = path;
 
-    return await tauriFs.readTextFile(path);
+    return await readTextFile(path);
   }
 
   if (hasFileSystemAccess) {
@@ -83,8 +83,9 @@ export async function openFile() {
  * @returns {Promise<string>} raw .ics text
  */
 export async function openFileByPath(path) {
-  _filePath = path;
-  _fileHandle = path.split('/').pop();      // last segment as display name
+  const { readTextFile } = await _getTauriFs();
+  _fileHandle = path;
+  _fileName   = path.split('/').pop();      // last segment as display name
   return readTextFile(path);
 }
 
@@ -120,7 +121,7 @@ export async function writeFile(content) {
   // TODO: Display error using setStatus()
 
   if (_isTauri) {
-    const { writeTextFile } = window.__TAURI__.fs;
+    const { writeTextFile } = await _getTauriFs();
 
     if(!_fileHandle) {
       throw new Error("No file handle availabe");

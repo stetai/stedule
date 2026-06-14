@@ -32,17 +32,11 @@ export async function refreshNotifs(events) {
 
   for (const ev of events) {
     if (!ev.start || ev.allDay) continue; // TODO: support all-day events
-    
-    const xptn = ev.exceptions
-    console.log(`exceptions: ${xptn}`);
 
     const occurrences = ev.rrule 
       ? occurrencesInWindow(ev, now, cutoff) 
       : (ev.start > now && ev.start < cutoff ? [ev.start] : []);
 
-    if (xptn) {
-      console.log(`occurrences: ${occurrences}`);
-    }
 
     for (const occ of occurrences) {// TODO: change to 400 events in the future
 
