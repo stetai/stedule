@@ -9,7 +9,7 @@ export default {
   server: {
     hmr: {
       protocol: 'ws',
-      host: process.env.TAURI_DEV_HOST || 'localhost',
+      host: '192.168.178.60',
       port: 5173,
       clientPort: 5173,
     },
