@@ -2,10 +2,18 @@
  * app.js — UI Controller
  */
 
+// -- imports -------------------------------------------------
+ 
 const v = new URL(import.meta.url).search;
 
+const _isTauri = !!window.__TAURI__?.core;
+
 import {
-  openFile, writeFile, reloadFile, hasFileOpen, getFileName, isFirefox
+  loadSyncedSettings, getLocalSetting, saveSyncedSettings
+} from './settings.js';
+
+import { 
+  openFile, writeFile, openFileByPath, getFilePath, reloadFile, hasFileOpen, getFileName, isFirefox
 } from './storage.js';
 
 import {
@@ -105,7 +113,7 @@ if (window.__TAURI__) {
 
 document.addEventListener('DOMContentLoaded', init);
 
-function init() {
+async function init() {
   $('btn-open').addEventListener('click', handleOpenFile);
   $('btn-settings').addEventListener('click', openSettingsModal);
   $('btn-prev').addEventListener('click', () => navigate(-1));
@@ -234,8 +242,21 @@ function init() {
 
   renderCalendar();
   renderWeekdayHeader(_firstWeekday);
-  setStatus('No file open. Click "Open .ics file" to begin.');
+  if (_isTauri) {
+    const icsPath      = await getLocalSetting('icsPath');
+    const settingsPath = await getLocalSetting('settingsPath');
 
+    if (icsPath && settingsPath) {
+      try {
+        const raw = await openFileByPath(icsPath);
+        await loadSyncedSettings(settingsPath);
+        events = parseICS(raw);
+        renderCalendar();
+      } catch {
+        setStatus('Saved file unavailable — please re-open manually.', 'error');
+      }
+    }
+  }
   updateNowIndicator();
   setInterval(updateNowIndicator, 2 * 1000);
 }
@@ -279,6 +300,13 @@ async function closeSettings() {
 
 async function handleOpenFile() {
   try {
+    const path = getFilePath();
+
+    if (path) {
+      await 
+      await loadSyncedSettings(path);
+    }
+
     const raw = await openFile();
     events = parseICS(raw);
     renderCalendar();
@@ -290,7 +318,6 @@ async function handleOpenFile() {
   } catch (err) {
     // don't show error if it comes from user input
     if (err.name === 'AbortError') return;
-    console.error('Open failed:', err);
     setStatus(`Error opening file: ${err?.message ?? String(err)}`, 'error');
   }
 }
