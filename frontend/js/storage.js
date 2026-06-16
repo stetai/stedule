@@ -1,32 +1,41 @@
 /**
  * storage.js — File I/O abstraction layer
  * 
- * BROWSER IMPLEMENTATION:
- * Uses the File System Access API — a modern browser API that lets JS
- * request permission to read/write a specific local file the user picks.
- * The user explicitly grants access each session; no silent disk access.
+ * Uses the File System Access API.
+ * Lets JS request permission to read/write a specific local file the user picks.
  * Chromium and Firefox-based browsers are handled differently based on
  * their design philosophies.
- *
- * TAURI MIGRATION (todo):
- * Replace the bodies of openFile() and writeFile() with:
- *   import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
- * The rest of the app stays identical.
  */
+
+// -- imports -------------------------------------------------
+
+async function _getTauriFs() {
+  return import('@tauri-apps/plugin-fs');
+}
+
+async function _getTauriDialog() {
+  return import('@tauri-apps/plugin-dialog');
+}
+
+//import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
+//import { open as tauriOpenDialog } from '@tauri-apps/plugin-dialog';
+
+// -- detect platform -----------------------------------------
 
 // Detect Tauri
 const _isTauri = !!window.__TAURI__?.core;
-//const isTauri = '__TAURI__' in window;
-//const isTauri = window.__TAURI__ !== undefined;
 
 // Detect capability (Distinguish between Chromium, Firefox)
-const _isFirefox = CSS.supports('-moz-appearance', 'none'); // reliable CSS-based detection
+const _isFirefox = CSS.supports('-moz-appearance', 'none');
 const hasFileSystemAccess = !_isTauri && !_isFirefox && 'showOpenFilePicker' in window;
 
 let _fileHandle = null; // Chromium: FileSystemFileHandle
 let _fileName   = null; // Both: display name
 
-// -- Exported API -------------------------------------------------------
+// -- Exported API --------------------------------------------
+
+/** Returns the current file path (Tauri only). */
+export function getFilePath() { return _fileHandle; }
 
 /**
  * Opens a file picker and reads the selected .ics file.
@@ -48,7 +57,7 @@ export async function openFile() {
       throw new DOMException('User cancelled', 'AbortError');
     }
 
-    const { readTextFile } = window.__TAURI__.fs;
+    const { readTextFile }  = await _getTauriFs();
 
     _fileName = path.split("%2F").pop();
     _fileHandle = path;
@@ -63,6 +72,45 @@ export async function openFile() {
   } else {
     throw new Error("Unsupported platform.")
   }
+}
+/**
+ * Opens settings file
+ */
+export async function openSettingsFile() {
+  const { open: tauriOpen, save: tauriSave } = await _getTauriDialog();
+
+  const isAndroid = navigator.userAgent.includes('Android');
+
+  if (isAndroid) {
+    return await tauriSave({
+      filters: [{name: 'JSON', extensions:['json']}],
+      defaultPath: 'stedule-settings.json',
+    });
+  } else {
+    return await tauriOpen({
+      filters: [{name: 'JSON', extensions:['json']}],
+      multiple: false,
+    });
+  }
+}
+
+/**
+ * Opens a file directly by its saved path without the picker dialog.
+ * Used on launch when a path was previously saved in local settings.
+ * Throws if the file can't be read (moved, deleted, permission lost).
+ *
+ * @param {string} path
+ * @returns {Promise<string>} raw .ics text
+ */
+export async function openFileByPath(path) {
+  const { readTextFile } = await _getTauriFs();
+  _fileHandle = path;
+  if (path.includes("%2F")) {
+    _fileName = path.split("%2F").pop();
+  } else {
+    _fileName   = path.split('/').pop();      // last segment as display name
+  }
+  return readTextFile(path);
 }
 
 /**
@@ -94,9 +142,10 @@ export async function reloadFile() {
  */
 export async function writeFile(content) {
   if (!_fileName) throw new Error('No file is open. Call openFile() first.');
+  // TODO: Display error using setStatus()
 
   if (_isTauri) {
-    const { writeTextFile } = window.__TAURI__.fs;
+    const { writeTextFile } = await _getTauriFs();
 
     if(!_fileHandle) {
       throw new Error("No file handle availabe");

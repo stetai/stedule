@@ -11,9 +11,13 @@
     "fs:default",
     "fs:read-all",
     "fs:write-all",
+    "fs:allow-write-text-file",
     "dialog:default",
+    "dialog:allow-save",
     "notification-scheduler:allow-schedule-notification",
     "notification-scheduler:allow-cancel-notification",
-    "notification-scheduler:allow-request-notification-permission"
+    "notification-scheduler:allow-request-notification-permission",
+    "store:default",
+    "store:allow-load"
   ]
 }

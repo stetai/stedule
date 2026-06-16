@@ -42,7 +42,7 @@
                        );
   --color-danger:      #ff2323;   /* clearer red for destructive actions */
 
-  /* Spacing — using a consistent scale prevents visual chaos */
+  /* Spacing */
   --space-xs:  4px;
   --space-sm:  8px;
   --space-md:  16px;
@@ -224,6 +224,17 @@ select {
   font-weight: 600;
 }
 
+/* radio button */
+.radio-label {
+  vertical-align: middle;
+  font-size: 1rem;
+  font-weight: normal;
+  font-style: normal;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--color-text);
+}
+
 /* ============================================================
    CALENDAR LAYOUT
 ============================================================ */
@@ -343,6 +354,7 @@ select {
    MODAL
 ============================================================ */
 
+.settings-overlay,
 .modal-overlay {
   position: fixed;    /* fixed = relative to viewport, not the document */
   inset: 0;           /* shorthand for top:0, right:0, bottom:0, left:0 */
@@ -356,6 +368,7 @@ select {
   transition: opacity 0.15s;
 }
 
+.settings-overlay.open,
 .modal-overlay.open {
   opacity: 1;
   pointer-events: all;
@@ -429,6 +442,12 @@ select {
   display: flex;
   gap: var(--space-sm);
   margin-left: auto;
+}
+
+.settings-path {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* --------------------------------------------------------
@@ -648,6 +667,8 @@ select:focus {
   background: var(--color-surface);
   border-top: 1px solid var(--color-border);
   display: flex;
+  overflow: wrap;
+  text-overflow: ellipsis;
   align-items: center;
   padding: 0 var(--space-lg);
   font-size: 0.75rem;
@@ -861,15 +882,17 @@ select:focus {
   left: 0;
   right: 0;
   height: 1px;
+  transform: translateY(-50%);
   /* Use a dashed/lighter border to visually distinguish from the full-hour line */
-  background: repeating-linear-gradient(
+  /*background: repeating-linear-gradient(
     to right,
     var(--color-border) 0,
     var(--color-border) 4px,
     transparent 4px,
     transparent 8px
-  );
-  opacity: 0.6;
+  );*/
+  background: var(--color-border);
+  opacity: 0.3;
   pointer-events: none; /* clicks pass through to the column */
 }
 
