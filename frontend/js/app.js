@@ -516,7 +516,7 @@ function renderWeekView() {
       if (continuesToNext)   chip.classList.add('continues-to-next');
 
       chip.style.top        = `${startH * HOUR_H}px`;
-      chip.style.height     = `${duration * HOUR_H}px`;
+      chip.style.height     = `${duration * HOUR_H - 1}px`; //1.5px gap at the bottom
       chip.style.left       = `calc(${left}% + 1px)`;
       chip.style.width      = `calc(${width}% - 2px)`;
       chip.style.background = ev.color;
