@@ -537,6 +537,8 @@ function renderMonthView() {
 const HOUR_H = 32; // pixels per hour. Must match --hour-h in style.css
 
 function renderWeekView() {
+  const now = new Date();
+
   elGrid.classList.remove('view-day');
   elGrid.classList.add('view-week');
 
@@ -663,7 +665,7 @@ function renderWeekView() {
       const continuesToNext = endH === 24;
 
       // Clamp to a minimum visual height so short events are still clickable
-      const duration = Math.max(endH - startH, 0.25);
+      const duration = Math.max(endH - startH, 0.5);
 
       const baseWidth = 100 / item.cols;
       const width = baseWidth * item.span;
@@ -676,10 +678,14 @@ function renderWeekView() {
       if (continuesToNext)   chip.classList.add('continues-to-next');
 
       chip.style.top        = `${startH * HOUR_H}px`;
-      chip.style.height     = `${duration * HOUR_H}px`;
+      chip.style.height     = `${duration * HOUR_H - 1}px`; //1.5px gap at the bottom
       chip.style.left       = `calc(${left}% + 1px)`;
       chip.style.width      = `calc(${width}% - 2px)`;
       chip.style.background = ev.color;
+
+      if (endDate < now) {
+        chip.style.background = hexToRGBA(ev.color, 0.5);
+      }
  
       // Show title + time if there is enough vertical space
       const titleEl = document.createElement('span');
@@ -1577,6 +1583,13 @@ function formatDate(date) {
 }
 
 // UI utilities -----------------------------------------------
+
+function hexToRGBA(hex, alpha) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 function layoutDayEvents(events) {
 

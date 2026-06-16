@@ -9,6 +9,8 @@ The goal of this application is to provide an alternative to Google Calendar tha
 For example, you could use the OSS [Syncthing](https://syncthing.net/).
 
 ## Changelog
+
+- 260614, **v0.3.2-alpha**: make past events slightly transparent, fix minimum event height
 - 260613, **v0.3.1-alpha**: Introduce now-indicator; improve multi-day UI; fix navigation resetting scroll; fix firefox warning on Android
 - 260613, **v0.3.0-alpha**: Introduce exceptions to rrule
 - 260611, **v0.2.3-alpha**: Prevent bad user input for time; time input UX improvement
@@ -57,7 +59,7 @@ Not planned, because I don't own any Apple devices. But feel free to contribute 
 - [x] Week view
 - [x] Tauri packaging for Android
 - [x] Recurring events
-- [ ] Dark mode
+- [x] Dark mode
 - [ ] Settings page
 - [ ] Support for Linux
 - [ ] Support for Windows

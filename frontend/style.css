@@ -869,6 +869,7 @@ select:focus {
   left: 0;
   right: 0;
   height: 1px;
+  transform: translateY(-50%);
   /* Use a dashed/lighter border to visually distinguish from the full-hour line */
   background: repeating-linear-gradient(
     to right,
@@ -923,7 +924,7 @@ select:focus {
   color: white;
   cursor: pointer;
   overflow: hidden;
-  min-height: 18px;
+  min-height: 5px;
   z-index: 1;
   box-sizing: border-box;
   display: flex;
