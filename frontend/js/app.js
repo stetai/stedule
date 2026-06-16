@@ -64,7 +64,7 @@ const DEFAULT_EVENT_COLOR = '#A80808';
  
 const CATEGORIES = {
   '':          { label: 'No category', color: null,                dismissed: false },
-  important:   { label: 'Important',   color: '#F2ECD9',           dismissed: false },
+  important:   { label: 'Important',   color: /*'#F2ECD9'*/'#3b35ee',           dismissed: false },
   university:  { label: 'University',  color: '#9B5C8F',           dismissed: false },
   routine:     { label: 'Routine',     color: '#FF9E8C',           dismissed: false },
   dismissed:   { label: 'Dismissed',   color: hexToRGBA(DEFAULT_EVENT_COLOR, 0.1), dismissed: true  },
