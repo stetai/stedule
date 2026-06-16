@@ -1059,7 +1059,7 @@ function closeQuickAdd() {
   }
 
   elQuickTitle.value = '';
-
+  elQuickBar.style.bottom = '0px';
   elQuickBar.classList.remove('open');
 }
 
@@ -1214,6 +1214,7 @@ function openEditEventModal(ev) {
 
   updateRepeatUI();
   openModal();
+  closeQuickAdd();
 
   rememberDuration(); // remember duration for editing
 }
