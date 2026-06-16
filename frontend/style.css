@@ -377,7 +377,18 @@ select {
   transform: translateY(0);
 }
 
-.modal-header {
+.modal-overlay.keyboard-open {
+  align-items: flex-start;
+}
+
+.modal-overlay.keyboard-open .modal {
+  height: var(--modal-kb-height);
+  max-height: var(--modal-kb-height);
+}
+
+.modal-header,
+.modal-footer {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -397,6 +408,8 @@ select {
 }
 
 .modal-body {
+  flex: 1 1 auto;
+  min-height: 50px;
   padding: var(--space-lg);
   display: flex;
   flex-direction: column;

@@ -57,6 +57,7 @@ const elGrid       = $('calendar-grid');
 const elPeriod     = $('current-period');
 const elStatus     = $('status-bar');
 const elOverlay    = $('modal-overlay');
+const elModal      = $('event-modal');
 const elModalTitle = $('modal-title');
 const elTitle      = $('event-title');
 const elWeekdays   = $('weekday-headers');
@@ -148,13 +149,23 @@ function init() {
     const updateQuickBarOffset = () => {
       const vv = window.visualViewport;
       const offset = window.innerHeight - (vv.height + vv.offsetTop);
-      elQuickBar.style.bottom = `${Math.max(offset, 0)}px`;
+
+      updateModalKeyboardLayout(offset);
+
+      if (elSettingsOverlay.classList.contains('open')) return;
+      if (elOverlay.classList.contains('open')) return;
+
+      const safePx = Math.min(offset, window.innerHeight * 0.5);
+      elQuickBar.style.bottom = `${safePx}px`;
 
       if (weekScrollEl) {
         const bottomOffset = parseFloat(elQuickBar.style.bottom) || 0;
         const quickBarTop  = window.innerHeight - bottomOffset - elQuickBar.offsetHeight;
         const scrollTop    = weekScrollEl.getBoundingClientRect().top;
-        weekScrollEl.style.maxHeight = `${quickBarTop - scrollTop}px`; 
+        const newHeight    = quickBarTop - scrollTop;
+        if (newHeight > 50) {
+          weekScrollEl.style.maxHeight = `${newHeight}px`; 
+        }
       }
     };
 
@@ -1056,6 +1067,22 @@ function openEditEventModal(ev) {
   rememberDuration(); // remember duration for editing
 }
 
+const KEYBOARD_THRESHOLD = 100; 
+
+function updateModalKeyboardLayout(keyboardOffset) {
+  if (!elOverlay.classList.contains('open') || keyboardOffset <= KEYBOARD_THRESHOLD) {
+    elOverlay.classList.remove('keyboard-open');
+    elModal.style.removeProperty('--modal-kb-height');
+    return;
+  }
+
+  const topMargin = 16;
+  const availableHeight = Math.max(window.innerHeight - keyboardOffset - topMargin, 200);
+
+  elOverlay.classList.add('keyboard-open');
+  elModal.style.setProperty('--modal-kb-height', `${availableHeight}px`);
+}
+
 function openModal() {
   elOverlay.classList.add('open');
   elOverlay.setAttribute('aria-hidden', 'false');
@@ -1063,13 +1090,13 @@ function openModal() {
 
 function closeModal() {
 
-  if (document.activeElement && elOverlay.contains
-    // prevent aria-hidden warning in Chrome
-    (document.activeElement)) {
+  if (document.activeElement && elOverlay.contains(document.activeElement)) { // prevent aria-hidden warning in Chrome
     document.activeElement.blur();
   }
   
   elOverlay.classList.remove('open');
+  elOverlay.classList.remove('keyboard-open');
+  elModal.style.removeProperty('--modal-kb-height');
   elOverlay.setAttribute('aria-hidden', 'true');
   editingId = null;
   editingOriginalDate = null;
