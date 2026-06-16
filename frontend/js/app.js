@@ -1238,7 +1238,7 @@ function openEditEventModal(ev) {
   const end  = ev.end ?? ev.start;
   elEndDate.value   = toDateInputValue(end);
   elEndTime.value   = toTimeInputValue(end);
-  elCategory.value  = ev.category ?? '';
+  elCategory.value  = ev.categories ?? '';
   elDesc.value      = ev.description ?? '';
   elColor.value     = ev.color ?? DEFAULT_EVENT_COLOR;
 
@@ -1670,9 +1670,13 @@ function hexToRGBA(hex, alpha) {
 function applyEventColorStyle(el, ev) {
   const color = ev.color || DEFAULT_EVENT_COLOR;
  
-  if (ev.category === 'dismissed') {
+  if (ev.categories === 'dismissed') {
     el.style.border      = `2px solid ${color}`;
     //return getContrastTextColor(/*background*/);
+  }
+
+  if (ev.categories && !CATEGORIES.contains(ev.categories)) {
+    color = '#000'; // category error
   }
  
   el.style.background = color;
