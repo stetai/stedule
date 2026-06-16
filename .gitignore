@@ -150,3 +150,5 @@ dist # we want this, it contains our code.
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+dist/
