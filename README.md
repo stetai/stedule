@@ -59,7 +59,7 @@ Not planned, because I don't own any Apple devices. But feel free to contribute 
 - [x] Week view
 - [x] Tauri packaging for Android
 - [x] Recurring events
-- [ ] Dark mode
+- [x] Dark mode
 - [ ] Settings page
 - [ ] Support for Linux
 - [ ] Support for Windows
