@@ -878,7 +878,8 @@ select:focus {
     transparent 4px,
     transparent 8px
   );*/
-  opacity: 0.2;
+  background: var(--color-border);
+  opacity: 0.3;
   pointer-events: none; /* clicks pass through to the column */
 }
 
