@@ -850,14 +850,15 @@ select:focus {
   height: 1px;
   transform: translateY(-50%);
   /* Use a dashed/lighter border to visually distinguish from the full-hour line */
-  background: repeating-linear-gradient(
+  /*background: repeating-linear-gradient(
     to right,
     var(--color-border) 0,
     var(--color-border) 4px,
     transparent 4px,
     transparent 8px
-  );
-  opacity: 0.6;
+  );*/
+  background: var(--color-border);
+  opacity: 0.3;
   pointer-events: none; /* clicks pass through to the column */
 }
 
