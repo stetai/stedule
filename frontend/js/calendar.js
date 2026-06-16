@@ -158,9 +158,10 @@ function occurrencesInWindow(ev, windowStart, windowEnd) {
  * @param {string} [params.description='']
  * @param {string} [params.color='#A80808']
  * @param {boolean}[params.allDay=false]
+ * @param {string|null}[params.category=null]
  * @returns {object} event
  */
-export function createEvent({ title, start, end, description = '', color = '#A80808', allDay = false, rrule = null }) {
+export function createEvent({ title, start, end, description = '', color = '#A80808', allDay = false, rrule = null, category = null }) {
   return {
     id: crypto.randomUUID(),
     title,
@@ -170,6 +171,7 @@ export function createEvent({ title, start, end, description = '', color = '#A80
     color,
     allDay,
     rrule,
+    category,
     exdates: [],
     exceptions: {} // sparse map of per-occurrence overrides, keyed by YYYY-MM-DD
   };
@@ -199,6 +201,11 @@ export function parseICS(rawText) {
 
     const xExceptions = v.getFirstPropertyValue('x-exceptions');
 
+    const categoryProp = v.getFirstPropertyValue('categories');
+    const categories = Array.isArray(categoryProp)
+      ? (categoryProp[0] ?? null) // TODO: support multiple categories, return the first for now
+      : (categoryProp ?? null);
+
     return {
       id: ev.uid ?? crypto.randomUUID(),
       title: ev.summary ?? '(No title)',
@@ -208,6 +215,7 @@ export function parseICS(rawText) {
       color: v.getFirstPropertyValue('color') ?? '#A80808',
       allDay: ev.startDate?.isDate ?? false,
       rrule: rruleProp ? rruleProp.toString() : null,
+      categories,
       exdates: exdateProps.map(p => p.getFirstValue().toJSDate()),
       exceptions: xExceptions ? JSON.parse(xExceptions) : {}
     };
@@ -282,6 +290,10 @@ export function serializeICS(events) {
 
     if (ev.color) {
       vevent.addPropertyWithValue('color', ev.color);
+    }
+
+    if (ev.category) {
+      vevent.addPropertyWithValue('categories', ev.category);
     }
 
     if (ev.rrule) {

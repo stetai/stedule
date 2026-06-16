@@ -59,6 +59,17 @@ let _seqcDayNum    = 1;
 // UI 
 let _savedScrollTop= null;
 
+// Categories
+const DEFAULT_EVENT_COLOR = '#A80808';
+ 
+const CATEGORIES = {
+  '':          { label: 'No category', color: null,                dismissed: false },
+  important:   { label: 'Important',   color: '#F2ECD9',           dismissed: false },
+  university:  { label: 'University',  color: '#9B5C8F',           dismissed: false },
+  routine:     { label: 'Routine',     color: '#FF9E8C',           dismissed: false },
+  dismissed:   { label: 'Dismissed',   color: hexToRGBA(DEFAULT_EVENT_COLOR, 0.1), dismissed: true  },
+};
+
 // ============================================================
 // DOM REFERENCES
 // ============================================================
@@ -76,6 +87,7 @@ const elStartDate  = $('event-start-date');
 const elStartTime  = $('event-start-time');
 const elEndDate    = $('event-end-date');
 const elEndTime    = $('event-end-time');
+const elCategory   = $('event-category');
 const elRepeat     = $('event-repeat');
 const elDesc       = $('event-description');
 const elColor      = $('event-color');
@@ -271,6 +283,11 @@ async function init() {
     _modalDuration = null;
   });
 
+  // categories
+  populateCategoryOptions();
+  elCategory.addEventListener('change', updateCategoryUI);
+
+  // recurrence
   elRepeat.addEventListener('change', updateRepeatUI);
   elRepeatEndType.addEventListener('change', updateRepeatUI);
 
@@ -681,7 +698,11 @@ function renderWeekView() {
       chip.style.height     = `${duration * HOUR_H - 1}px`; //1.5px gap at the bottom
       chip.style.left       = `calc(${left}% + 1px)`;
       chip.style.width      = `calc(${width}% - 2px)`;
-      chip.style.background = ev.color;
+
+      const textColor = '#ffffff';
+      // TODO: Add styling for text colour based on background colour
+
+      applyEventColorStyle(chip, ev);
 
       if (endDate < now) {
         chip.style.background = hexToRGBA(ev.color, 0.5);
@@ -691,9 +712,11 @@ function renderWeekView() {
       const titleEl = document.createElement('span');
       titleEl.className = 'week-event-title';
       titleEl.textContent = ev.title;
+      titleEl.style.color = textColor;
  
       const timeEl = document.createElement('span');
       timeEl.className = 'week-event-time';
+      timeEl.style.color = textColor;
       if(duration * HOUR_H > 32 && !continuesFromPrev /*&& there are no collisions*/){
         timeEl.textContent = `${formatTime(ev.start)}`;//- ${formatTime(endDate)}`;
       }
@@ -1107,8 +1130,10 @@ function openNewEventModal(date, title='', end=null) {
   const defaultEnd   = addTime(date,1.5);
   elEndTime.value    = toTimeInputValue(end ?? defaultEnd);
   elEndDate.value    = toDateInputValue(end ?? defaultEnd);
+  elCategory.value   = '';
   elDesc.value       = '';
-  elColor.value      = '#A80808';
+  elColor.value      = DEFAULT_EVENT_COLOR;
+  elColor.disabled   = false;
   elRepeat.value     = '';
   elRepeatInterval.value = 1;
   elRepeatEndType.value = '';
@@ -1120,6 +1145,7 @@ function openNewEventModal(date, title='', end=null) {
     .forEach(cb => cb.checked = false);
 
   updateRepeatUI();
+  updateCategoryUI();
 
   openModal();
 
@@ -1129,6 +1155,39 @@ function openNewEventModal(date, title='', end=null) {
   elTitle.focus();
 
   rememberDuration(); // remember duration for editing
+}
+
+/**
+ * Builds the <option> elements for the category dropdown from the
+ * CATEGORIES config object. Called on init. If a future
+ * Settings panel lets users edit categories, call this again after
+ * any change to CATEGORIES.
+ */
+function populateCategoryOptions() {
+  elCategory.innerHTML = '';
+  for (const [key, cat] of Object.entries(CATEGORIES)) {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = cat.label;
+    elCategory.appendChild(opt);
+  }
+}
+
+/**
+ * Syncs the colour picker with the currently selected category.
+ * Categories with a defined colour force the colour field to that
+ * value and lock it, so the two can't drift out of sync; "No
+ * category" hands control back to the user.
+ */
+function updateCategoryUI() {
+  const cat = CATEGORIES[elCategory.value];
+ 
+  if (cat && cat.color) {
+    elColor.value = cat.color;
+    elColor.disabled = true;
+  } else {
+    elColor.disabled = false;
+  }
 }
 
 function updateRepeatUI() {
@@ -1179,8 +1238,11 @@ function openEditEventModal(ev) {
   const end  = ev.end ?? ev.start;
   elEndDate.value   = toDateInputValue(end);
   elEndTime.value   = toTimeInputValue(end);
+  elCategory.value  = ev.category ?? '';
   elDesc.value      = ev.description ?? '';
-  elColor.value     = ev.color ?? '#A80808';
+  elColor.value     = ev.color ?? DEFAULT_EVENT_COLOR;
+
+  updateCategoryUI(); //re-locks the colour field if category controls it
 
   if (ev.rrule) {
     const recur = parseRRule(ev.rrule);
@@ -1257,6 +1319,8 @@ function handleModalSave() {
     }
   }
 
+  const categories = elCategory.value || null;
+
   const repeat = elRepeat.value || null;
   let rrule = null;
 
@@ -1305,7 +1369,7 @@ function handleModalSave() {
   }
 
   // Non-recurring
-  _commitRecurrenceSaveNow({title, start, end, description: elDesc.value, color: elColor.value, rrule}, 'all');
+  _commitRecurrenceSaveNow({title, start, end, description: elDesc.value, color: elColor.value, rrule, categories}, 'all');
 }
 
 async function handleModalDelete() {
@@ -1413,7 +1477,7 @@ async function commitRecurrenceSave(scope) {
  * @param {'this'|'all'} scope
  */
 function _commitRecurrenceSaveNow(fields, scope) {
-  const { title, start, end, description, color, rrule } = fields;
+  const { title, start, end, description, color, rrule, categories } = fields;
  
   if (editingId) {
     const idx = events.findIndex(ev => ev.id === editingId);
@@ -1428,6 +1492,7 @@ function _commitRecurrenceSaveNow(fields, scope) {
         if (title       !== master.title)       exception.title       = title;
         if (description !== master.description) exception.description = description;
         if (color       !== master.color)       exception.color       = color;
+        if (categories  !==  (master.category ?? null)) exception.categories = categories;
  
         // Compare times by value, not reference
         const masterOccStart = (() => {
@@ -1451,12 +1516,12 @@ function _commitRecurrenceSaveNow(fields, scope) {
       } else {
         // Update the master. 
         // Existing per-occurrence exceptions are preserved.
-        events[idx] = { ...events[idx], title, start, end, description, color, rrule };
+        events[idx] = { ...events[idx], title, start, end, description, color, categories, rrule};
       }
     }
   } else {
     // Brand new event
-    events.push(createEvent({ title, start, end, description, color, rrule }));
+    events.push(createEvent({ title, start, end, description, color, categories, rrule }));
   }
  
   closeModal();
@@ -1590,6 +1655,27 @@ function hexToRGBA(hex, alpha) {
   const g = parseInt(hex.slice(3,5),16);
   const b = parseInt(hex.slice(5,7),16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/**
+ * Paints an event chip's background (and border, for "Dismissed")
+ * and returns the text colour that should be used on top of it.
+ * Shared by both the month-view chip and the week-view chip so the
+ * two views can't drift out of sync.
+ *
+ * @param {HTMLElement} el - the chip element to style
+ * @param {object} ev      - the event (needs .color, .category)
+ * @returns {string} text colour for this chip's title/time
+ */
+function applyEventColorStyle(el, ev) {
+  const color = ev.color || DEFAULT_EVENT_COLOR;
+ 
+  if (ev.category === 'dismissed') {
+    el.style.border      = `2px solid ${color}`;
+    //return getContrastTextColor(/*background*/);
+  }
+ 
+  el.style.background = color;
 }
 
 function layoutDayEvents(events) {
