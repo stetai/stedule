@@ -201,9 +201,6 @@ async function init() {
   if (window.visualViewport) {
     const updateQuickBarOffset = () => {
 
-      if (elSettingsOverlay.classList.contains('open')) return;
-      if (elOverlay.classList.contains('open')) return;
-
       const vv = window.visualViewport;
       const offset = window.innerHeight - (vv.height + vv.offsetTop);
 
