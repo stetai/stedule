@@ -1668,7 +1668,7 @@ function hexToRGBA(hex, alpha) {
  * @returns {string} text colour for this chip's title/time
  */
 function applyEventColorStyle(el, ev) {
-  const color = ev.color || DEFAULT_EVENT_COLOR;
+  let color = ev.color || DEFAULT_EVENT_COLOR;
  
   if (ev.categories === 'dismissed') {
     el.style.border      = `2px solid ${color}`;
