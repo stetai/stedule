@@ -67,7 +67,7 @@ const CATEGORIES = {
   important:   { label: 'Important',   color: /*'#F2ECD9'*/'#3b35ee',           dismissed: false },
   university:  { label: 'University',  color: '#9B5C8F',           dismissed: false },
   routine:     { label: 'Routine',     color: '#FF9E8C',           dismissed: false },
-  dismissed:   { label: 'Dismissed',   color: hexToRGBA(DEFAULT_EVENT_COLOR, 0.1), dismissed: true  },
+  dismissed:   { label: 'Dismissed',   color: DEFAULT_EVENT_COLOR, dismissed: true  },
 };
 
 // ============================================================
@@ -706,6 +706,10 @@ function renderWeekView() {
 
       if (endDate < now) {
         chip.style.background = hexToRGBA(ev.color, 0.5);
+        if (ev.categories === 'dismissed') {
+          chip.style.background = hexToRGBA(ev.color, 0.1);
+          chip.style.border = `2px solid ${hexToRGBA(ev.color, 0.5)}`;
+        }
       }
  
       // Show title + time if there is enough vertical space
@@ -1492,7 +1496,7 @@ function _commitRecurrenceSaveNow(fields, scope) {
         if (title       !== master.title)       exception.title       = title;
         if (description !== master.description) exception.description = description;
         if (color       !== master.color)       exception.color       = color;
-        if (categories  !==  (master.category ?? null)) exception.categories = categories;
+        if (categories  !==  (master.categories ?? null)) exception.categories = categories;
  
         // Compare times by value, not reference
         const masterOccStart = (() => {
@@ -1672,12 +1676,14 @@ function applyEventColorStyle(el, ev) {
  
   if (ev.categories === 'dismissed') {
     el.style.border      = `2px solid ${color}`;
+    el.style.background  = hexToRGBA(DEFAULT_EVENT_COLOR, 0.2);
+    return;
     //return getContrastTextColor(/*background*/);
   }
 
-  if (ev.categories && !CATEGORIES.contains(ev.categories)) {
+  /*if (ev.categories && !CATEGORIES.includes(ev.categories)) {
     color = '#000'; // category error
-  }
+  }*/
  
   el.style.background = color;
 }

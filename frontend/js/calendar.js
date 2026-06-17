@@ -158,10 +158,10 @@ function occurrencesInWindow(ev, windowStart, windowEnd) {
  * @param {string} [params.description='']
  * @param {string} [params.color='#A80808']
  * @param {boolean}[params.allDay=false]
- * @param {string|null}[params.category=null]
+ * @param {string|null}[params.categories=null]
  * @returns {object} event
  */
-export function createEvent({ title, start, end, description = '', color = '#A80808', allDay = false, rrule = null, category = null }) {
+export function createEvent({ title, start, end, description = '', color = '#A80808', allDay = false, rrule = null, categories = null }) {
   return {
     id: crypto.randomUUID(),
     title,
@@ -171,7 +171,7 @@ export function createEvent({ title, start, end, description = '', color = '#A80
     color,
     allDay,
     rrule,
-    category,
+    categories,
     exdates: [],
     exceptions: {} // sparse map of per-occurrence overrides, keyed by YYYY-MM-DD
   };
@@ -292,8 +292,8 @@ export function serializeICS(events) {
       vevent.addPropertyWithValue('color', ev.color);
     }
 
-    if (ev.category) {
-      vevent.addPropertyWithValue('categories', ev.category);
+    if (ev.categories) {
+      vevent.addPropertyWithValue('categories', ev.categories);
     }
 
     if (ev.rrule) {
