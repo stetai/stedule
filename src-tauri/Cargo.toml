@@ -1,6 +1,6 @@
 [package]
 name = "Stedule"
-version = "0.5.0-alpha.1"
+version = "0.5.0-alpha.2"
 description = "A calendar application that saves its data in a local .ics file."
 authors = ["Steven Taing"]
 edition = "2021"
