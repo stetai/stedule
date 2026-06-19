@@ -10,7 +10,7 @@ For example, you could use the OSS [Syncthing](https://syncthing.net/).
 
 ## Changelog
 
-- 260619, **v0.5.1-alpha**: Improved "Dismissed" category styling; improved scope modal layout
+- 260619, **v0.5.1-alpha**: Improved category styling; improved scope modal layout
 - 260617, **v0.5.0-alpha**: Introduced categories
 - 260616, **v0.4.1-alpha**: Improve UI: adjust chip height
 - 260616, **v0.4.0-alpha**: Introduce settings
