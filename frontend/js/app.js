@@ -64,7 +64,7 @@ const DEFAULT_EVENT_COLOR = '#A80808';
  
 const CATEGORIES = {
   '':          { label: 'No category', color: null,                dismissed: false },
-  important:   { label: 'Important',   color: /*'#F2ECD9'*/'#3b35ee',           dismissed: false },
+  important:   { label: 'Important',   color: '#F2ECD9',           dismissed: false },
   university:  { label: 'University',  color: '#9B5C8F',           dismissed: false },
   routine:     { label: 'Routine',     color: '#FF9E8C',           dismissed: false },
   dismissed:   { label: 'Dismissed',   color: null, dismissed: true  },
@@ -688,6 +688,7 @@ function renderWeekView() {
       const width = baseWidth * item.span;
       const left  = baseWidth * item.col;
  
+      // Chip styling
       const chip = document.createElement('div');
       chip.className = 'week-event';
 
@@ -699,25 +700,34 @@ function renderWeekView() {
       chip.style.left       = `calc(${left}% + 1px)`;
       chip.style.width      = `calc(${width}% - 2px)`;
 
-      const textColor = applyEventColorStyle(chip, ev);
+      const chipStyle = getEventColorStyle(ev);
+
+      let opacity = 1;
+      let border = null;
 
       if (endDate < now) {
-        chip.style.background = hexToRGBA(ev.color, 0.5);
-        if (ev.categories === 'dismissed') {
-          chip.style.background = hexToRGBA(ev.color, 0.1);
-          chip.style.border = `2px solid ${hexToRGBA(ev.color, 0.5)}`;
-        }
+        opacity = chipStyle.dismissed ? 0.1 : 0.5;
+        if (chipStyle.dismissed) border = hexToRGBA(chipStyle.baseColor, 0.5);
+      } else {
+        opacity = chipStyle.dismissed ? 0.2 : 1;
+        if (chipStyle.dismissed) border = chipStyle.baseColor;
       }
- 
+
+      chip.style.background = hexToRGBA(chipStyle.baseColor, opacity);
+
+      if (border) {
+        chip.style.border = `2px solid ${border}`;
+      }
+
       // Show title + time if there is enough vertical space
       const titleEl = document.createElement('span');
       titleEl.className = 'week-event-title';
       titleEl.textContent = ev.title;
-      titleEl.style.color = textColor;
+      titleEl.style.color = chipStyle.textColor;
  
       const timeEl = document.createElement('span');
       timeEl.className = 'week-event-time';
-      timeEl.style.color = textColor;
+      timeEl.style.color = chipStyle.textColor;
       if(duration * HOUR_H > 32 && !continuesFromPrev /*&& there are no collisions*/){
         timeEl.textContent = `${formatTime(ev.start)}`;//- ${formatTime(endDate)}`;
       }
@@ -1702,26 +1712,35 @@ function getContrastTextColor(hex) {
  *
  * @param {HTMLElement} el - the chip element to style
  * @param {object} ev      - the event (needs .color, .category)
- * @returns {string} text colour for this chip's title/time
+ * @returns {dict} color (hex)     - chip's background colour
+ *                 textColor (hex) - text colour for this chip's title/time
+ *                 dismissed (bool)- whether or not event is dismissed
  */
-function applyEventColorStyle(el, ev) {
+function getEventColorStyle(ev) {
   let color = ev.color || DEFAULT_EVENT_COLOR;
  
-  console.log(color);
-  if (ev.categories === 'dismissed') {
-    el.style.border      = `2px solid ${color}`;
-    el.style.background  = hexToRGBA(color, 0.2);
-    return getContrastTextColor('#1a1614');
-    //return getContrastTextColor(window.getComputedStyle(body).getPropertyValue('background')/*background*/);
+  if (ev.categories && CATEGORIES[ev.categories]) {
+    const cat = CATEGORIES[ev.categories];
+    if (cat.color) {color = cat.color;}
   }
 
-  /*if (ev.categories && !CATEGORIES.includes(ev.categories)) {
+  const dismissed = ev.categories === 'dismissed';
+
+  const appBg = getComputedStyle(document.body).getPropertyValue('--color-bg').trim();
+
+  const contrastBase = dismissed ? appBg : color;
+
+  const textColor = getContrastTextColor(contrastBase);
+
+  return {
+    baseColor: color, 
+    textColor,
+    dismissed
+  };
+
+  /*if (ev.categories && !CATEGORIES[ev.categories]) {
     color = '#000'; // category error
   }*/
- 
-  el.style.background = color;
-
-  return getContrastTextColor(color);
 }
 
 function layoutDayEvents(events) {
