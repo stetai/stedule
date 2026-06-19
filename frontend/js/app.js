@@ -67,7 +67,7 @@ const CATEGORIES = {
   important:   { label: 'Important',   color: /*'#F2ECD9'*/'#3b35ee',           dismissed: false },
   university:  { label: 'University',  color: '#9B5C8F',           dismissed: false },
   routine:     { label: 'Routine',     color: '#FF9E8C',           dismissed: false },
-  dismissed:   { label: 'Dismissed',   color: DEFAULT_EVENT_COLOR, dismissed: true  },
+  dismissed:   { label: 'Dismissed',   color: null, dismissed: true  },
 };
 
 // ============================================================
@@ -1676,7 +1676,7 @@ function applyEventColorStyle(el, ev) {
  
   if (ev.categories === 'dismissed') {
     el.style.border      = `2px solid ${color}`;
-    el.style.background  = hexToRGBA(DEFAULT_EVENT_COLOR, 0.2);
+    el.style.background  = hexToRGBA(color, 0.2);
     return;
     //return getContrastTextColor(/*background*/);
   }
