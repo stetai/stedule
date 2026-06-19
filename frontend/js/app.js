@@ -1363,7 +1363,7 @@ function handleModalSave() {
   }
 
   if (editingId && editingOriginalDate){
-    _pendingSave = { title, start, end, description: elDesc.value, color: elColor.value, rrule };
+    _pendingSave = { title, start, end, description: elDesc.value, color: elColor.value, rrule, categories };
     elScopeDesc.textContent = 
       'This is a recurring event. Do you want to apply the changes to just this occurrence, or all occurrences?';
     $('scope-this').textContent = 'This event';
