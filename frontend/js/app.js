@@ -699,10 +699,7 @@ function renderWeekView() {
       chip.style.left       = `calc(${left}% + 1px)`;
       chip.style.width      = `calc(${width}% - 2px)`;
 
-      const textColor = '#ffffff';
-      // TODO: Add styling for text colour based on background colour
-
-      applyEventColorStyle(chip, ev);
+      const textColor = applyEventColorStyle(chip, ev);
 
       if (endDate < now) {
         chip.style.background = hexToRGBA(ev.color, 0.5);
@@ -1654,12 +1651,48 @@ function formatDate(date) {
 
 // UI utilities -----------------------------------------------
 
+const offWhite = '#f2ece8'
+const offBlack = '#1a1a1a'
+
 function hexToRGBA(hex, alpha) {
   const r = parseInt(hex.slice(1,3),16);
   const g = parseInt(hex.slice(3,5),16);
   const b = parseInt(hex.slice(5,7),16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
+
+/**
+ * Picks black or white text so it stays readable on top of an
+ * arbitrary hex background colour 
+ *
+ * Uses the WCAG 2.1 relative luminance formula and picks whichever
+ * of black/white gives the higher contrast ratio against `hex`.
+ * Source: https://www.w3.org/TR/WCAG21/relative-luminance.html
+ *
+ * @param {string} hex - background colour
+ * @returns {string} hex '#f2ece8' or '#1a1a1a'
+ */
+function getContrastTextColor(hex) {
+  if (!hex) return offWhite;
+ 
+  const toLinear = (channelHex) => {
+    const c = parseInt(channelHex, 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+ 
+  const r = toLinear(hex.slice(1, 3));
+  const g = toLinear(hex.slice(3, 5));
+  const b = toLinear(hex.slice(5, 7));
+ 
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+ 
+  // Contrast ratio formula: (L1 + 0.05) / (L2 + 0.05), lighter over darker.
+  const contrastWithWhite = (1.0 + 0.05) / (luminance + 0.05);
+  const contrastWithBlack = (luminance + 0.05) / (0.0 + 0.05);
+ 
+  return contrastWithWhite >= contrastWithBlack ? offWhite : offBlack;
+}
+
 
 /**
  * Paints an event chip's background (and border, for "Dismissed")
@@ -1674,11 +1707,12 @@ function hexToRGBA(hex, alpha) {
 function applyEventColorStyle(el, ev) {
   let color = ev.color || DEFAULT_EVENT_COLOR;
  
+  console.log(color);
   if (ev.categories === 'dismissed') {
     el.style.border      = `2px solid ${color}`;
     el.style.background  = hexToRGBA(color, 0.2);
-    return;
-    //return getContrastTextColor(/*background*/);
+    return getContrastTextColor('#1a1614');
+    //return getContrastTextColor(window.getComputedStyle(body).getPropertyValue('background')/*background*/);
   }
 
   /*if (ev.categories && !CATEGORIES.includes(ev.categories)) {
@@ -1686,6 +1720,8 @@ function applyEventColorStyle(el, ev) {
   }*/
  
   el.style.background = color;
+
+  return getContrastTextColor(color);
 }
 
 function layoutDayEvents(events) {
