@@ -643,9 +643,11 @@ select:focus {
 }
  
 .scope-dialog-footer {
-  gap: var(--space-sm);
-  /* Override the default space-between to cluster buttons on the right */
-  justify-content: flex-end;
+  gap: var(--space-sm); /* Override the default space-between to cluster buttons on the right */
+  flex-wrap: wrap;
+  display:flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 /* ============================================================
@@ -1014,6 +1016,8 @@ select:focus {
   cursor: ns-resize;
   touch-action: none;
 }
+
+/* General styling */
 
 /* Make text unselectable */
 *.unselectable {

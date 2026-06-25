@@ -10,6 +10,10 @@ For example, you could use the OSS [Syncthing](https://syncthing.net/).
 
 ## Changelog
 
+- 260619, **v0.5.1-alpha**: Improved category styling; improved scope modal layout
+- 260617, **v0.5.0-alpha**: Introduced categories
+- 260616, **v0.4.1-alpha**: Improve UI: adjust chip height
+- 260616, **v0.4.0-alpha**: Introduce settings
 - 260614, **v0.3.2-alpha**: make past events slightly transparent, fix minimum event height
 - 260613, **v0.3.1-alpha**: Introduce now-indicator; improve multi-day UI; fix navigation resetting scroll; fix firefox warning on Android
 - 260613, **v0.3.0-alpha**: Introduce exceptions to rrule
