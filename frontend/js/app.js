@@ -261,7 +261,12 @@ async function init() {
   elOverlay.addEventListener('click', (e) => {
     if (e.target === elOverlay) closeModal(); 
     // only if the overlay itself was clicked
+    e.stopPropagation();
   });
+
+  elOverlay.addEventListener('scroll', (e) => {
+    e.stopPropagation();
+  })
 
   // Keyboard: Escape closes the modal.
   document.addEventListener('keydown', (e) => {
@@ -1298,18 +1303,26 @@ function openEditEventModal(ev) {
 const KEYBOARD_THRESHOLD = 100; 
 
 function updateModalKeyboardLayout(keyboardOffset) {
-  if (!elOverlay.classList.contains('open') || keyboardOffset <= KEYBOARD_THRESHOLD) {
+  if (!elOverlay.classList.contains('open')) {
     elOverlay.classList.remove('keyboard-open');
-    elModal.style.removeProperty('--modal-kb-height');
+    //elModal.style.removeProperty('--modal-kb-height');
+    elOverlay.style.removeProperty('top');
+    elOverlay.style.removeProperty('height');
     return;
   }
 
-  const topMargin = 16;
-  const availableHeight = Math.max(window.innerHeight - keyboardOffset - topMargin, 200);
+  const vv = window.visualViewport;
+
+  elOverlay.style.top    = `${vv.offsetTop}px`;
+  elOverlay.style.height = `${vv.height}px`;
+
+  if (keyboardOffset <= KEYBOARD_THRESHOLD) {
+    elOverlay.classList.remove('keyboard-open');
+    return;
+  }
 
   elOverlay.classList.add('keyboard-open');
-  elModal.style.setProperty('--modal-kb-height', `${availableHeight}px`);
-}
+} 
 
 function openModal() {
   elOverlay.classList.add('open');
@@ -1325,6 +1338,8 @@ function closeModal() {
   elOverlay.classList.remove('open');
   elOverlay.classList.remove('keyboard-open');
   elModal.style.removeProperty('--modal-kb-height');
+  elOverlay.style.removeProperty('top');
+  elOverlay.style.removeProperty('height');
   elOverlay.setAttribute('aria-hidden', 'true');
   editingId = null;
   editingOriginalDate = null;

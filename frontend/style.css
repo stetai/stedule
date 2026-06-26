@@ -85,6 +85,16 @@ html, body {
   height: 100%;
   /* Prevents page from being taller than the viewport.
      The calendar should fill the screen, not scroll the page. */
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+}
+
+#app{
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 body {
@@ -366,6 +376,8 @@ select {
   opacity: 0;
   pointer-events: none; /* while hidden, clicks pass through to content below */
   transition: opacity 0.15s;
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
 .settings-overlay.open,
@@ -374,12 +386,19 @@ select {
   pointer-events: all;
 }
 
+#modal-overlay {
+  align-items: flex-start;
+  padding-top: calc(env(safe-area-inset-top) + 15px);
+  padding-bottom: 15px;
+}
+
 .modal {
   background: var(--color-surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   width: min(480px, 90vw); /* min() = never wider than 90% of viewport */
-  max-height: 90dvh;
+  max-height: 100%;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   transform: translateY(8px);
@@ -390,13 +409,9 @@ select {
   transform: translateY(0);
 }
 
-.modal-overlay.keyboard-open {
-  align-items: flex-start;
-}
-
 .modal-overlay.keyboard-open .modal {
-  height: var(--modal-kb-height);
-  max-height: var(--modal-kb-height);
+  height: 100%;
+  max-height: 100%;
 }
 
 .modal-header {
@@ -425,12 +440,13 @@ select {
 
 .modal-body {
   flex: 1 1 auto;
-  min-height: 50px;
+  min-height: 0;
   padding: var(--space-lg);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
   gap: var(--space-md);
+  overscroll-behavior: contain;
 }
 
 .modal-footer {
