@@ -560,6 +560,10 @@ function renderMonthView() {
 // --- Week view ---
 
 const HOUR_H = 32; // pixels per hour. Must match --hour-h in style.css
+const OVERLAY_HEADER_PX  = 30;          // (~title + time line)
+const OVERLAY_INSET_PCT  = 10;          // % of the host's width left visible behind guest
+const ONE_HOUR_MS        = 60 * 60 * 1000;
+
 
 function renderWeekView() {
   const now = new Date();
@@ -692,13 +696,14 @@ function renderWeekView() {
       // Clamp to a minimum visual height so short events are still clickable
       const duration = Math.max(endH - startH, 0.5);
 
-      const baseWidth = 100 / item.cols;
-      const width = baseWidth * item.span;
-      const left  = baseWidth * item.col;
+      const left = item.leftPct;
+      const width = item.widthPct;
  
       // Chip styling
       const chip = document.createElement('div');
       chip.className = 'week-event';
+
+      if (item.z > 1) chip.classList.add('week-event-overlay');
 
       if (continuesFromPrev) chip.classList.add('continues-from-prev');
       if (continuesToNext)   chip.classList.add('continues-to-next');
@@ -707,6 +712,7 @@ function renderWeekView() {
       chip.style.height     = `${duration * HOUR_H - 1}px`; //1.5px gap at the bottom
       chip.style.left       = `calc(${left}% + 1px)`;
       chip.style.width      = `calc(${width}% - 2px)`;
+      chip.style.zIndex     = item.z;
 
       const chipStyle = getEventColorStyle(ev);
 
@@ -1779,7 +1785,9 @@ function getEventColorStyle(ev) {
   }*/
 }
 
-function layoutDayEvents(events) {
+// event tiling upon collision
+
+function packColumns(events) {
 
   const sorted = [...events]
     .filter(ev => !ev.allDay)
@@ -1839,6 +1847,89 @@ function layoutDayEvents(events) {
       cols: colCount
     }
   });
+}
+
+// Picks the *tightest* (latest-starting) valid host if several contain it.
+function findOverlayHost(ev, candidates, headerClearanceHours) {
+  let best = null;
+  for (const host of candidates) {
+    if (host === ev) continue;
+    const hostStart = host.start;
+    const hostEnd    = host.end ?? host.start;
+    const evEnd      = ev.end ?? ev.start;
+
+    // TODO: Also apply if partial overlap 
+    // (i. e. only check if start is within another event to apply this)
+    const contained   = hostStart <= ev.start && evEnd <= hostEnd;
+    const clearsHeader = (ev.start - hostStart) >= headerClearanceHours * ONE_HOUR_MS;
+    const hostIsLonger = (hostEnd - hostStart) > (evEnd - ev.start);
+
+    if (contained && clearsHeader && hostIsLonger) {
+      if (!best || host.start > best.start) best = host;
+    }
+  }
+  return best;
+}
+
+function layoutDayEvents(events) {
+  const timed = events.filter(ev => !ev.allDay);
+  const headerClearanceHours = OVERLAY_HEADER_PX / HOUR_H;
+
+  const hostMap = new Map(); // guest -> host
+  for (const ev of timed) {
+    const host = findOverlayHost(ev, timed, headerClearanceHours);
+    if (host) hostMap.set(ev, host);
+  }
+
+  for (const guest of [...hostMap.keys()]) {
+    if ([...hostMap.values()].includes(guest)) hostMap.delete(guest);
+  }
+
+  const baseEvents  = timed.filter(ev => !hostMap.has(ev));
+  const baseLayout  = packColumns(baseEvents);
+  const baseByEvent = new Map(baseLayout.map(item => [item.event, item]));
+
+  const results = [];
+
+  for (const item of baseLayout) {
+    const baseWidth = 100 / item.cols;
+    results.push({
+      event: item.event,
+      leftPct: baseWidth * item.col,
+      widthPct: baseWidth * item.span,
+      z: 1,
+    });
+  }
+
+  const guestsByHost = new Map();
+  for (const [guest, host] of hostMap) {
+    if (!guestsByHost.has(host)) guestsByHost.set(host, []);
+    guestsByHost.get(host).push(guest);
+  }
+
+  for (const [host, guests] of guestsByHost) {
+    const hostBox = baseByEvent.get(host);
+    if (!hostBox) continue;
+    const hostBaseWidth = 100 / hostBox.cols;
+    const hostLeft  = hostBaseWidth * hostBox.col;
+    const hostWidth = hostBaseWidth * hostBox.span;
+
+    const insetLeft  = hostLeft + hostWidth * (OVERLAY_INSET_PCT / 100);
+    const insetWidth = hostWidth * (1 - OVERLAY_INSET_PCT / 100);
+
+    const guestLayout = packColumns(guests); 
+    for (const g of guestLayout) {
+      const gBaseWidth = insetWidth / g.cols;
+      results.push({
+        event: g.event,
+        leftPct: insetLeft + gBaseWidth * g.col,
+        widthPct: gBaseWidth * g.span,
+        z: 2,
+      });
+    }
+  }
+
+  return results;
 }
 
 function weekRangeLabel(date) {
