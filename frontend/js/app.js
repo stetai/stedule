@@ -65,8 +65,11 @@ const DEFAULT_EVENT_COLOR = '#A80808';
 const CATEGORIES = {
   '':          { label: 'No category', color: null,                dismissed: false },
   important:   { label: 'Important',   color: '#F2ECD9',           dismissed: false },
-  university:  { label: 'University',  color: '#9B5C8F',           dismissed: false },
-  routine:     { label: 'Routine',     color: '#FF9E8C',           dismissed: false },
+  university:  { label: 'University',  color: '#a6226a',           dismissed: false },
+  uni_related: { label: 'Uni-related', color: '#a6427c',           dismissed: false },
+  hobby:       { label: 'Hobby',       color: '#4c3aa6',           dismissed: false },
+  social:      { label: 'Social',      color: '#a63a3a',           dismissed: false },
+  routine:     { label: 'Routine',     color: '#a64c3a',           dismissed: false },
   dismissed:   { label: 'Dismissed',   color: null, dismissed: true  },
 };
 
