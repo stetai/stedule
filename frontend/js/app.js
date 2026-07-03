@@ -560,6 +560,7 @@ function renderMonthView() {
 // --- Week view ---
 
 const HOUR_H = 32; // pixels per hour. Must match --hour-h in style.css
+const CHIP_PADDING = 2;
 const OVERLAY_HEADER_PX  = 30;          // (~title + time line)
 const OVERLAY_INSET_PCT  = 10;          // % of the host's width left visible behind guest
 const ONE_HOUR_MS        = 60 * 60 * 1000;
@@ -643,6 +644,7 @@ function renderWeekView() {
 
   const daysWrap = document.createElement('div');
   daysWrap.className = 'week-days';
+  const chipsToCheck = [];
  
   for (let i = 0; i < 7; i++) {
     const day = new Date(monday);
@@ -711,7 +713,7 @@ function renderWeekView() {
       chip.style.top        = `${startH * HOUR_H}px`;
       chip.style.height     = `${duration * HOUR_H - 1}px`; //1.5px gap at the bottom
       chip.style.left       = `calc(${left}% + 1px)`;
-      chip.style.width      = `calc(${width}% - 2px)`;
+      chip.style.width      = `calc(${width}% - ${CHIP_PADDING}px)`;
       chip.style.zIndex     = item.z;
 
       const chipStyle = getEventColorStyle(ev);
@@ -720,10 +722,10 @@ function renderWeekView() {
       let border = null;
 
       if (endDate < now) {
-        opacity = chipStyle.dismissed ? 0.1 : 0.5;
+        opacity = chipStyle.dismissed ? 0.2 : 0.5;
         if (chipStyle.dismissed) border = hexToRGBA(chipStyle.baseColor, 0.5);
       } else {
-        opacity = chipStyle.dismissed ? 0.2 : 1;
+        opacity = chipStyle.dismissed ? 0.4 : 1;
         if (chipStyle.dismissed) border = chipStyle.baseColor;
       }
 
@@ -736,15 +738,17 @@ function renderWeekView() {
       // Show title + time if there is enough vertical space
       const titleEl = document.createElement('span');
       titleEl.className = 'week-event-title';
-      titleEl.textContent = ev.title;
       titleEl.style.color = chipStyle.textColor;
- 
+      titleEl.textContent = ev.title;
+
       const timeEl = document.createElement('span');
       timeEl.className = 'week-event-time';
       timeEl.style.color = chipStyle.textColor;
       if(duration * HOUR_H > 32 && !continuesFromPrev /*&& there are no collisions*/){
         timeEl.textContent = `${formatTime(ev.start)}`;//- ${formatTime(endDate)}`;
       }
+
+      chipsToCheck.push({titleEl, timeEl, widthPct: width});
  
       chip.appendChild(titleEl);
       chip.appendChild(timeEl);
@@ -789,6 +793,19 @@ function renderWeekView() {
   scroll.appendChild(body);
   view.appendChild(scroll);
   elGrid.appendChild(view);
+
+  //render titles if chip is wide enough
+  const colWidthPx = daysWrap.querySelector('.week-day-col')
+                      ?.getBoundingClientRect().width ?? 0;
+  const MIN_TITLE_PX = 0.5 * HOUR_H; // reuse HOUR_H as proxy for readable width
+
+  for (const { titleEl, timeEl, widthPct } of chipsToCheck) {
+    const effectiveWidthPx = (widthPct / 100) * colWidthPx - CHIP_PADDING;
+    if (effectiveWidthPx < MIN_TITLE_PX) {
+      titleEl.textContent = '';
+      timeEl.textContent = '';
+    }
+  }
 
   updateNowIndicator();
 
