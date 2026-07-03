@@ -1824,29 +1824,14 @@ function packColumns(events) {
 
   const colCount = columns.length;
 
-  return positioned.map(r => {
+  const items = positioned.map(r => ({
+    event: r.event,
+    col: r.col,
+    span: spanForInterval(r.col, colCount, columns, r.event),
+    cols: colCount,
+  }));
 
-    let span = 1;
-
-    for (let i = r.col + 1; i < colCount; i++) {
-
-      const conflict = columns[i].some(e =>
-        !( (e.end ?? e.start) <= r.event.start ||
-           e.start >= (r.event.end ?? r.event.start))
-      );
-
-      if (conflict) break;
-
-      span++;
-    }
-
-    return {
-      event: r.event,
-      col: r.col,
-      span,
-      cols: colCount
-    }
-  });
+  return { items, columns, colCount };
 }
 
 // Picks the *tightest* (latest-starting) valid host if several contain it.
@@ -1864,7 +1849,7 @@ function findOverlayHost(ev, candidates, headerClearanceHours) {
     const clearsHeader = (ev.start - hostStart) >= headerClearanceHours * ONE_HOUR_MS;
     const hostIsLonger = (hostEnd - hostStart) > (evEnd - ev.start);
 
-    if (clearsHeader && ev.start <= hostEnd){//contained && clearsHeader && hostIsLonger) {
+    if (clearsHeader && ev.start < hostEnd){//contained && clearsHeader && hostIsLonger) {
       if (!best || host.start > best.start) best = host;
     }
   }
@@ -1887,10 +1872,11 @@ function layoutDayEvents(events) {
     guestsByHost.get(host).push(guest);
   }
 
-  const baseEvents = timed.filter(ev => !hostMap.has(ev)); // events with no host = layer 0
-  const baseLayout = packColumns(baseEvents);
+  const baseEvents = timed.filter(ev => !hostMap.has(ev));
+  const { items: baseLayout, columns: baseColumns, colCount: baseColCount } = packColumns(baseEvents);
+  const baseEventSet = new Set(baseEvents);
 
-  const boxByEvent = new Map(); // event -> {leftPct, widthPct, z}
+  const boxByEvent = new Map();
   const results = [];
 
   for (const item of baseLayout) {
@@ -1898,10 +1884,11 @@ function layoutDayEvents(events) {
     const box = {
       leftPct: baseWidth * item.col,
       widthPct: baseWidth * item.span,
+      col: item.col,
       z: 1,
     };
     boxByEvent.set(item.event, box);
-    results.push({ event: item.event, ...box });
+    results.push({ event: item.event, leftPct: box.leftPct, widthPct: box.widthPct, z: box.z });
   }
 
   // Kahn's-algorithm-style worklist
@@ -1910,22 +1897,35 @@ function layoutDayEvents(events) {
     let progressed = false;
 
     for (const host of pending) {
-      if (!boxByEvent.has(host)) continue; // host's own box isn't ready yet
+      if (!boxByEvent.has(host)) continue;
 
       const hostBox = boxByEvent.get(host);
-      const insetLeft  = hostBox.leftPct + hostBox.widthPct * (OVERLAY_INSET_PCT / 100);
-      const insetWidth = hostBox.widthPct * (1 - OVERLAY_INSET_PCT / 100);
+      const guests  = guestsByHost.get(host);
 
-      const guestLayout = packColumns(guestsByHost.get(host));
+      let availableWidthPct = hostBox.widthPct; // fallback: chained hosts keep old behavior
+
+      if (baseEventSet.has(host)) {
+        const groupStart = new Date(Math.min(...guests.map(g => g.start)));
+        const groupEnd   = new Date(Math.max(...guests.map(g => (g.end ?? g.start))));
+        const guestSpan  = spanForInterval(hostBox.col, baseColCount, baseColumns,
+                                            { start: groupStart, end: groupEnd });
+        availableWidthPct = (100 / baseColCount) * guestSpan;
+      }
+
+      const insetLeft  = hostBox.leftPct + hostBox.widthPct * (OVERLAY_INSET_PCT / 100);
+      const insetWidth = availableWidthPct - hostBox.widthPct * (OVERLAY_INSET_PCT / 100);
+
+      const guestLayout = packColumns(guests).items;
       for (const g of guestLayout) {
         const gBaseWidth = insetWidth / g.cols;
         const box = {
           leftPct: insetLeft + gBaseWidth * g.col,
           widthPct: gBaseWidth * g.span,
+          col: 0,
           z: hostBox.z + 1,
         };
         boxByEvent.set(g.event, box);
-        results.push({ event: g.event, ...box });
+        results.push({ event: g.event, leftPct: box.leftPct, widthPct: box.widthPct, z: box.z });
       }
 
       pending.delete(host);
@@ -1936,6 +1936,20 @@ function layoutDayEvents(events) {
   }
 
   return results;
+}
+
+// number of columns that an interval can occupy to the right
+function spanForInterval(colIndex, colCount, columns, interval) {
+  let span = 1;
+  for (let i = colIndex + 1; i < colCount; i++) {
+    const conflict = columns[i].some(e =>
+      !((e.end ?? e.start) <= interval.start ||
+        e.start >= (interval.end ?? interval.start))
+    );
+    if (conflict) break;
+    span++;
+  }
+  return span;
 }
 
 function weekRangeLabel(date) {
