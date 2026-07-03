@@ -1864,7 +1864,7 @@ function findOverlayHost(ev, candidates, headerClearanceHours) {
     const clearsHeader = (ev.start - hostStart) >= headerClearanceHours * ONE_HOUR_MS;
     const hostIsLonger = (hostEnd - hostStart) > (evEnd - ev.start);
 
-    if (contained && clearsHeader && hostIsLonger) {
+    if (clearsHeader && ev.start <= hostEnd){//contained && clearsHeader && hostIsLonger) {
       if (!best || host.start > best.start) best = host;
     }
   }
@@ -1881,52 +1881,58 @@ function layoutDayEvents(events) {
     if (host) hostMap.set(ev, host);
   }
 
-  for (const guest of [...hostMap.keys()]) {
-    if ([...hostMap.values()].includes(guest)) hostMap.delete(guest);
-  }
-
-  const baseEvents  = timed.filter(ev => !hostMap.has(ev));
-  const baseLayout  = packColumns(baseEvents);
-  const baseByEvent = new Map(baseLayout.map(item => [item.event, item]));
-
-  const results = [];
-
-  for (const item of baseLayout) {
-    const baseWidth = 100 / item.cols;
-    results.push({
-      event: item.event,
-      leftPct: baseWidth * item.col,
-      widthPct: baseWidth * item.span,
-      z: 1,
-    });
-  }
-
   const guestsByHost = new Map();
   for (const [guest, host] of hostMap) {
     if (!guestsByHost.has(host)) guestsByHost.set(host, []);
     guestsByHost.get(host).push(guest);
   }
 
-  for (const [host, guests] of guestsByHost) {
-    const hostBox = baseByEvent.get(host);
-    if (!hostBox) continue;
-    const hostBaseWidth = 100 / hostBox.cols;
-    const hostLeft  = hostBaseWidth * hostBox.col;
-    const hostWidth = hostBaseWidth * hostBox.span;
+  const baseEvents = timed.filter(ev => !hostMap.has(ev)); // events with no host = layer 0
+  const baseLayout = packColumns(baseEvents);
 
-    const insetLeft  = hostLeft + hostWidth * (OVERLAY_INSET_PCT / 100);
-    const insetWidth = hostWidth * (1 - OVERLAY_INSET_PCT / 100);
+  const boxByEvent = new Map(); // event -> {leftPct, widthPct, z}
+  const results = [];
 
-    const guestLayout = packColumns(guests); 
-    for (const g of guestLayout) {
-      const gBaseWidth = insetWidth / g.cols;
-      results.push({
-        event: g.event,
-        leftPct: insetLeft + gBaseWidth * g.col,
-        widthPct: gBaseWidth * g.span,
-        z: 2,
-      });
+  for (const item of baseLayout) {
+    const baseWidth = 100 / item.cols;
+    const box = {
+      leftPct: baseWidth * item.col,
+      widthPct: baseWidth * item.span,
+      z: 1,
+    };
+    boxByEvent.set(item.event, box);
+    results.push({ event: item.event, ...box });
+  }
+
+  // Kahn's-algorithm-style worklist
+  let pending = new Set(guestsByHost.keys());
+  while (pending.size > 0) {
+    let progressed = false;
+
+    for (const host of pending) {
+      if (!boxByEvent.has(host)) continue; // host's own box isn't ready yet
+
+      const hostBox = boxByEvent.get(host);
+      const insetLeft  = hostBox.leftPct + hostBox.widthPct * (OVERLAY_INSET_PCT / 100);
+      const insetWidth = hostBox.widthPct * (1 - OVERLAY_INSET_PCT / 100);
+
+      const guestLayout = packColumns(guestsByHost.get(host));
+      for (const g of guestLayout) {
+        const gBaseWidth = insetWidth / g.cols;
+        const box = {
+          leftPct: insetLeft + gBaseWidth * g.col,
+          widthPct: gBaseWidth * g.span,
+          z: hostBox.z + 1,
+        };
+        boxByEvent.set(g.event, box);
+        results.push({ event: g.event, ...box });
+      }
+
+      pending.delete(host);
+      progressed = true;
     }
+
+    if (!progressed) break; // defensive: shouldn't happen (see note below), avoids an infinite loop
   }
 
   return results;
