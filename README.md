@@ -10,7 +10,8 @@ For example, you could use the OSS [Syncthing](https://syncthing.net/).
 
 ## Changelog
 
-- 260626, **v0.5.2-alpha**: Improved modal UX;
+- 260703, **v0.5.3-alpha**: Improved event tiling
+- 260626, **v0.5.2-alpha**: Improved modal UX
 - 260619, **v0.5.1-alpha**: Improved category styling; improved scope modal layout
 - 260617, **v0.5.0-alpha**: Introduced categories
 - 260616, **v0.4.1-alpha**: Improve UI: adjust chip height
