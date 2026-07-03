@@ -563,6 +563,11 @@ function renderMonthView() {
 // --- Week view ---
 
 const HOUR_H = 32; // pixels per hour. Must match --hour-h in style.css
+const CHIP_PADDING = 2;
+const OVERLAY_HEADER_PX  = 30;          // (~title + time line)
+const OVERLAY_INSET_PCT  = 10;          // % of the host's width left visible behind guest
+const ONE_HOUR_MS        = 60 * 60 * 1000;
+
 
 function renderWeekView() {
   const now = new Date();
@@ -642,6 +647,7 @@ function renderWeekView() {
 
   const daysWrap = document.createElement('div');
   daysWrap.className = 'week-days';
+  const chipsToCheck = [];
  
   for (let i = 0; i < 7; i++) {
     const day = new Date(monday);
@@ -695,13 +701,14 @@ function renderWeekView() {
       // Clamp to a minimum visual height so short events are still clickable
       const duration = Math.max(endH - startH, 0.5);
 
-      const baseWidth = 100 / item.cols;
-      const width = baseWidth * item.span;
-      const left  = baseWidth * item.col;
+      const left = item.leftPct;
+      const width = item.widthPct;
  
       // Chip styling
       const chip = document.createElement('div');
       chip.className = 'week-event';
+
+      if (item.z > 1) chip.classList.add('week-event-overlay');
 
       if (continuesFromPrev) chip.classList.add('continues-from-prev');
       if (continuesToNext)   chip.classList.add('continues-to-next');
@@ -709,7 +716,8 @@ function renderWeekView() {
       chip.style.top        = `${startH * HOUR_H}px`;
       chip.style.height     = `${duration * HOUR_H - 1}px`; //1.5px gap at the bottom
       chip.style.left       = `calc(${left}% + 1px)`;
-      chip.style.width      = `calc(${width}% - 2px)`;
+      chip.style.width      = `calc(${width}% - ${CHIP_PADDING}px)`;
+      chip.style.zIndex     = item.z;
 
       const chipStyle = getEventColorStyle(ev);
 
@@ -717,10 +725,10 @@ function renderWeekView() {
       let border = null;
 
       if (endDate < now) {
-        opacity = chipStyle.dismissed ? 0.1 : 0.5;
+        opacity = chipStyle.dismissed ? 0.2 : 0.5;
         if (chipStyle.dismissed) border = hexToRGBA(chipStyle.baseColor, 0.5);
       } else {
-        opacity = chipStyle.dismissed ? 0.2 : 1;
+        opacity = chipStyle.dismissed ? 0.4 : 1;
         if (chipStyle.dismissed) border = chipStyle.baseColor;
       }
 
@@ -733,15 +741,17 @@ function renderWeekView() {
       // Show title + time if there is enough vertical space
       const titleEl = document.createElement('span');
       titleEl.className = 'week-event-title';
-      titleEl.textContent = ev.title;
       titleEl.style.color = chipStyle.textColor;
- 
+      titleEl.textContent = ev.title;
+
       const timeEl = document.createElement('span');
       timeEl.className = 'week-event-time';
       timeEl.style.color = chipStyle.textColor;
       if(duration * HOUR_H > 32 && !continuesFromPrev /*&& there are no collisions*/){
         timeEl.textContent = `${formatTime(ev.start)}`;//- ${formatTime(endDate)}`;
       }
+
+      chipsToCheck.push({titleEl, timeEl, widthPct: width});
  
       chip.appendChild(titleEl);
       chip.appendChild(timeEl);
@@ -786,6 +796,19 @@ function renderWeekView() {
   scroll.appendChild(body);
   view.appendChild(scroll);
   elGrid.appendChild(view);
+
+  //render titles if chip is wide enough
+  const colWidthPx = daysWrap.querySelector('.week-day-col')
+                      ?.getBoundingClientRect().width ?? 0;
+  const MIN_TITLE_PX = 0.6 * HOUR_H; // reuse HOUR_H as proxy for readable width
+
+  for (const { titleEl, timeEl, widthPct } of chipsToCheck) {
+    const effectiveWidthPx = (widthPct / 100) * colWidthPx - CHIP_PADDING;
+    if (effectiveWidthPx < MIN_TITLE_PX) {
+      titleEl.textContent = '';
+      timeEl.textContent = '';
+    }
+  }
 
   updateNowIndicator();
 
@@ -1782,12 +1805,14 @@ function getEventColorStyle(ev) {
   }*/
 }
 
-function layoutDayEvents(events) {
+// event tiling upon collision
+
+function packColumns(events, endOf = (e) => (e.end ?? e.start)) {
 
   const sorted = [...events]
     .filter(ev => !ev.allDay)
     .sort((a,b) =>
-      a.start - b.start || (b.end - b.start) - (a.end - a.start)
+      a.start - b.start || (endOf(b) - b.start) - (endOf(a) - a.start)
     );
 
   const columns = [];
@@ -1806,7 +1831,7 @@ function layoutDayEvents(events) {
       const col = columns[colIndex];
       const last = col[col.length-1];
 
-      if (!last || (last.end ?? last.start) <= ev.start) {
+      if (!last || endOf(last) <= ev.start) {
         col.push(ev);
         positioned.push({event: ev, col: colIndex});
         break;
@@ -1819,29 +1844,151 @@ function layoutDayEvents(events) {
 
   const colCount = columns.length;
 
-  return positioned.map(r => {
+  const items = positioned.map(r => ({
+    event: r.event,
+    col: r.col,
+    span: spanForInterval(r.col, colCount, columns, r.event),
+    cols: colCount,
+  }));
 
-    let span = 1;
+  return { items, columns, colCount };
+}
 
-    for (let i = r.col + 1; i < colCount; i++) {
+// Picks the *tightest* (latest-starting) valid host if several contain it.
+function findOverlayHost(ev, candidates, headerClearanceHours) {
+  let best = null, bestStart = 0, bestEnd = 24 * ONE_HOUR_MS;
+  for (const host of candidates) {
 
-      const conflict = columns[i].some(e =>
-        !( (e.end ?? e.start) <= r.event.start ||
-           e.start >= (r.event.end ?? r.event.start))
-      );
+    if (host === ev) continue;
+    const hostStart = host.start.getTime();
+    const hostEnd    = (host.end ?? host.start).getTime();
+    const evEnd      = ev.end ?? ev.start;
 
-      if (conflict) break;
+    const startsInside = hostStart <= ev.start && ev.start < hostEnd;
+    const clearsHeader = (ev.start - hostStart) >= headerClearanceHours * ONE_HOUR_MS;
+    const hostIsLonger = (hostEnd - hostStart) > (evEnd - ev.start);
 
-      span++;
+    if (!startsInside) continue;
+    if (!clearsHeader) continue;
+    if (hostStart > bestStart || (hostStart === bestStart && hostEnd < bestEnd)) {
+      best = host; bestStart = hostStart; bestEnd = hostEnd;
     }
 
-    return {
-      event: r.event,
-      col: r.col,
-      span,
-      cols: colCount
+    /*if (clearsHeader && ev.start < hostEnd){//contained && clearsHeader && hostIsLonger) {
+      if (!best || host.start > best.start) best = host;
+    }*/
+  }
+  return best;
+}
+
+function layoutDayEvents(events) {
+  const timed = events.filter(ev => !ev.allDay);
+  const headerClearanceHours = OVERLAY_HEADER_PX / HOUR_H;
+
+  const hostMap = new Map(); // guest -> host
+  for (const ev of timed) {
+    const host = findOverlayHost(ev, timed, headerClearanceHours);
+    if (host) hostMap.set(ev, host);
+  }
+
+  const guestsByHost = new Map();
+  for (const [guest, host] of hostMap) {
+    if (!guestsByHost.has(host)) guestsByHost.set(host, []);
+    guestsByHost.get(host).push(guest);
+  }
+
+  // A host's slot effectively lasts until the end of its latest (transitive) guest.
+  const _effEndCache = new Map();
+  function effectiveEndOf(ev) {
+    if (_effEndCache.has(ev)) return _effEndCache.get(ev);
+    let end = ev.end ?? ev.start;
+    for (const g of (guestsByHost.get(ev) || [])) {
+      const ge = effectiveEndOf(g);
+      if (ge > end) end = ge;
     }
-  });
+    _effEndCache.set(ev, end);
+    return end;
+  }
+
+  const baseEvents = timed.filter(ev => !hostMap.has(ev));
+  const { items: baseLayout, columns: baseColumns, colCount: baseColCount } = packColumns(baseEvents, effectiveEndOf);
+  const baseEventSet = new Set(baseEvents);
+
+  const boxByEvent = new Map();
+  const results = [];
+
+  for (const item of baseLayout) {
+    const baseWidth = 100 / item.cols;
+    const box = {
+      leftPct: baseWidth * item.col,
+      widthPct: baseWidth * item.span,
+      col: item.col,
+      z: 1,
+    };
+    boxByEvent.set(item.event, box);
+    results.push({ event: item.event, leftPct: box.leftPct, widthPct: box.widthPct, z: box.z });
+  }
+
+  // Kahn's-algorithm-style worklist
+  let pending = new Set(guestsByHost.keys());
+  while (pending.size > 0) {
+    let progressed = false;
+
+    for (const host of pending) {
+      if (!boxByEvent.has(host)) continue;
+
+      const hostBox = boxByEvent.get(host);
+      const guests  = guestsByHost.get(host);
+
+      let availableWidthPct = hostBox.widthPct; // fallback: chained hosts keep old behavior
+
+      if (baseEventSet.has(host)) {
+        const groupStart = new Date(Math.min(...guests.map(g => g.start)));
+        const groupEnd   = new Date(Math.max(...guests.map(g => (g.end ?? g.start))));
+        const guestSpan  = spanForInterval(hostBox.col, baseColCount, baseColumns,
+                                            { start: groupStart, end: groupEnd });
+        availableWidthPct = (100 / baseColCount) * guestSpan;
+      }
+
+      const insetLeft  = hostBox.leftPct + hostBox.widthPct * (OVERLAY_INSET_PCT / 100);
+      const insetWidth = availableWidthPct - hostBox.widthPct * (OVERLAY_INSET_PCT / 100);
+
+      const guestLayout = packColumns(guests, effectiveEndOf).items;
+      for (const g of guestLayout) {
+        const gBaseWidth = insetWidth / g.cols;
+        const box = {
+          leftPct: insetLeft + gBaseWidth * g.col,
+          widthPct: gBaseWidth * g.span,
+          col: 0,
+          z: hostBox.z + 1,
+        };
+        boxByEvent.set(g.event, box);
+        results.push({ event: g.event, leftPct: box.leftPct, widthPct: box.widthPct, z: box.z });
+      }
+
+      pending.delete(host);
+      progressed = true;
+    }
+
+    if (!progressed) break; // defensive: shouldn't happen (see note below), avoids an infinite loop
+  }
+
+  return results;
+}
+
+// number of columns that an interval can occupy to the right
+function spanForInterval(colIndex, colCount, columns, interval, ignore=null) {
+  let span = 1;
+  for (let i = colIndex + 1; i < colCount; i++) {
+    const conflict = columns[i].some(e =>
+      (!ignore || !ignore.has(e)) &&
+      !((e.end ?? e.start) <= interval.start ||
+      e.start >= (interval.end ?? interval.start))
+    );
+    if (conflict) break;
+    span++;
+  }
+  return span;
 }
 
 function weekRangeLabel(date) {
