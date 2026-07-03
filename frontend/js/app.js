@@ -797,7 +797,7 @@ function renderWeekView() {
   //render titles if chip is wide enough
   const colWidthPx = daysWrap.querySelector('.week-day-col')
                       ?.getBoundingClientRect().width ?? 0;
-  const MIN_TITLE_PX = 0.5 * HOUR_H; // reuse HOUR_H as proxy for readable width
+  const MIN_TITLE_PX = 0.6 * HOUR_H; // reuse HOUR_H as proxy for readable width
 
   for (const { titleEl, timeEl, widthPct } of chipsToCheck) {
     const effectiveWidthPx = (widthPct / 100) * colWidthPx - CHIP_PADDING;
@@ -1804,12 +1804,12 @@ function getEventColorStyle(ev) {
 
 // event tiling upon collision
 
-function packColumns(events) {
+function packColumns(events, endOf = (e) => (e.end ?? e.start)) {
 
   const sorted = [...events]
     .filter(ev => !ev.allDay)
     .sort((a,b) =>
-      a.start - b.start || (b.end - b.start) - (a.end - a.start)
+      a.start - b.start || (endOf(b) - b.start) - (endOf(a) - a.start)
     );
 
   const columns = [];
@@ -1828,7 +1828,7 @@ function packColumns(events) {
       const col = columns[colIndex];
       const last = col[col.length-1];
 
-      if (!last || (last.end ?? last.start) <= ev.start) {
+      if (!last || endOf(last) <= ev.start) {
         col.push(ev);
         positioned.push({event: ev, col: colIndex});
         break;
@@ -1853,22 +1853,27 @@ function packColumns(events) {
 
 // Picks the *tightest* (latest-starting) valid host if several contain it.
 function findOverlayHost(ev, candidates, headerClearanceHours) {
-  let best = null;
+  let best = null, bestStart = 0, bestEnd = 24 * ONE_HOUR_MS;
   for (const host of candidates) {
+
     if (host === ev) continue;
-    const hostStart = host.start;
-    const hostEnd    = host.end ?? host.start;
+    const hostStart = host.start.getTime();
+    const hostEnd    = (host.end ?? host.start).getTime();
     const evEnd      = ev.end ?? ev.start;
 
-    // TODO: Also apply if partial overlap 
-    // (i. e. only check if start is within another event to apply this)
-    const contained   = hostStart <= ev.start && evEnd <= hostEnd;
+    const startsInside = hostStart <= ev.start && ev.start < hostEnd;
     const clearsHeader = (ev.start - hostStart) >= headerClearanceHours * ONE_HOUR_MS;
     const hostIsLonger = (hostEnd - hostStart) > (evEnd - ev.start);
 
-    if (clearsHeader && ev.start < hostEnd){//contained && clearsHeader && hostIsLonger) {
-      if (!best || host.start > best.start) best = host;
+    if (!startsInside) continue;
+    if (!clearsHeader) continue;
+    if (hostStart > bestStart || (hostStart === bestStart && hostEnd < bestEnd)) {
+      best = host; bestStart = hostStart; bestEnd = hostEnd;
     }
+
+    /*if (clearsHeader && ev.start < hostEnd){//contained && clearsHeader && hostIsLonger) {
+      if (!best || host.start > best.start) best = host;
+    }*/
   }
   return best;
 }
@@ -1889,8 +1894,21 @@ function layoutDayEvents(events) {
     guestsByHost.get(host).push(guest);
   }
 
+  // A host's slot effectively lasts until the end of its latest (transitive) guest.
+  const _effEndCache = new Map();
+  function effectiveEndOf(ev) {
+    if (_effEndCache.has(ev)) return _effEndCache.get(ev);
+    let end = ev.end ?? ev.start;
+    for (const g of (guestsByHost.get(ev) || [])) {
+      const ge = effectiveEndOf(g);
+      if (ge > end) end = ge;
+    }
+    _effEndCache.set(ev, end);
+    return end;
+  }
+
   const baseEvents = timed.filter(ev => !hostMap.has(ev));
-  const { items: baseLayout, columns: baseColumns, colCount: baseColCount } = packColumns(baseEvents);
+  const { items: baseLayout, columns: baseColumns, colCount: baseColCount } = packColumns(baseEvents, effectiveEndOf);
   const baseEventSet = new Set(baseEvents);
 
   const boxByEvent = new Map();
@@ -1932,7 +1950,7 @@ function layoutDayEvents(events) {
       const insetLeft  = hostBox.leftPct + hostBox.widthPct * (OVERLAY_INSET_PCT / 100);
       const insetWidth = availableWidthPct - hostBox.widthPct * (OVERLAY_INSET_PCT / 100);
 
-      const guestLayout = packColumns(guests).items;
+      const guestLayout = packColumns(guests, effectiveEndOf).items;
       for (const g of guestLayout) {
         const gBaseWidth = insetWidth / g.cols;
         const box = {
@@ -1956,12 +1974,13 @@ function layoutDayEvents(events) {
 }
 
 // number of columns that an interval can occupy to the right
-function spanForInterval(colIndex, colCount, columns, interval) {
+function spanForInterval(colIndex, colCount, columns, interval, ignore=null) {
   let span = 1;
   for (let i = colIndex + 1; i < colCount; i++) {
     const conflict = columns[i].some(e =>
+      (!ignore || !ignore.has(e)) &&
       !((e.end ?? e.start) <= interval.start ||
-        e.start >= (interval.end ?? interval.start))
+      e.start >= (interval.end ?? interval.start))
     );
     if (conflict) break;
     span++;
