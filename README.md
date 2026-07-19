@@ -10,6 +10,7 @@ For example, you could use the OSS [Syncthing](https://syncthing.net/).
 
 ## Changelog
 
+- 260719, **v0.5.4-alpha**: ; improved categories; decreased min event size to 15 min
 - 260703, **v0.5.3-alpha**: Improved event tiling
 - 260626, **v0.5.2-alpha**: Improved modal UX
 - 260619, **v0.5.1-alpha**: Improved category styling; improved scope modal layout
