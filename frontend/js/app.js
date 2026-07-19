@@ -63,14 +63,16 @@ let _savedScrollTop= null;
 const DEFAULT_EVENT_COLOR = '#A80808';
  
 const CATEGORIES = {
-  '':          { label: 'No category', color: null,                dismissed: false },
-  important:   { label: 'Important',   color: '#F2ECD9',           dismissed: false },
-  university:  { label: 'University',  color: '#a6226a',           dismissed: false },
-  uni_related: { label: 'Uni-related', color: '#a6427c',           dismissed: false },
-  hobby:       { label: 'Hobby',       color: '#4c3aa6',           dismissed: false },
-  social:      { label: 'Social',      color: '#a63a3a',           dismissed: false },
-  routine:     { label: 'Routine',     color: '#a64c3a',           dismissed: false },
-  dismissed:   { label: 'Dismissed',   color: null, dismissed: true  },
+  '':          { label: 'No category', color: null,         dismissed: false },
+  important:   { label: 'Important',   color: '#f2d9d9',  dismissed: false },
+  routine:     { label: 'Routine',     color: '#a65a4b',  dismissed: false },
+  chores:      { label: 'Chores',      color: '#a63e29',  dismissed: false },
+  university:  { label: 'University',  color: '#a6226a',  dismissed: false },
+  uni_related: { label: 'Uni-related', color: '#a64b80',  dismissed: false },
+  dorm_council:{ label: 'Dorm Council',color: '#8542a6',  dismissed: false },
+  social:      { label: 'Social',      color: '#5e3aa6',  dismissed: false },
+  hobby:       { label: 'Hobby',       color: '#3a4ca6',  dismissed: false },
+  dismissed:   { label: 'Dismissed',   color: null,         dismissed: true  },
 };
 
 // ============================================================
@@ -699,7 +701,7 @@ function renderWeekView() {
       const continuesToNext = endH === 24;
 
       // Clamp to a minimum visual height so short events are still clickable
-      const duration = Math.max(endH - startH, 0.5);
+      const duration = Math.max(endH - startH, 0.25);
 
       const left = item.leftPct;
       const width = item.widthPct;
