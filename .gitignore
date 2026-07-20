@@ -7,6 +7,9 @@ data/
 .stignore
 .stversions/
 
+# Tauri
+gen/
+
 # keystores
 src-tauri/gen/android/keystore.properties
 *.jks
