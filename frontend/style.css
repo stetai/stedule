@@ -684,10 +684,11 @@ select:focus {
 ============================================================ */
 
 .status-bar {
-  height: var(--status-h);
+  min-height: var(--status-h);
   background: var(--color-surface);
   border-top: 1px solid var(--color-border);
   display: flex;
+  /*flex-wrap: wrap;*/
   overflow: wrap;
   text-overflow: ellipsis;
   align-items: center;

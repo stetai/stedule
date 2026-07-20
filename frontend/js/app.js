@@ -694,7 +694,7 @@ function renderWeekView() {
       }
       if (endDate.getDate() === day.getDate() + 1 && endDate.getHours() === 0 && endDate.getMinutes() === 0) {
         endH = 23.99;
-      }
+      } 
 
       // multi-day?
       const continuesFromPrev = ev.start.getDate() !== day.getDate() && ev.start < day;
