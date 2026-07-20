@@ -395,9 +395,28 @@ export function eventsOnDay(events, date) {
     }
 
     // No exception entry for this day — check the plain RRULE.
-    if (recursOnDay(ev, date)) {
-      const occurrence = materializeOccurrence(ev, date);
+    const occurrenceStart = recursOnDay(ev, date);
+    if (occurrenceStart) {
+      const occurrence = materializeOccurrence(ev, occurrenceStart);
       if (occurrence) result.push(occurrence);
+    }
+
+    const duration = (ev.end ?? ev.start) - ev.start;
+    if (duration > 0) {
+      const daysBack = Math.ceil(duration / (24 * 60 * 60 * 1000));
+      for (let i = 1; i <= daysBack; i++) {
+        const priorDay = new Date(date);
+        priorDay.setDate(priorDay.getDate() - i);
+
+        const priorStart = recursOnDay(ev, priorDay);
+        if (!priorStart) continue;
+        if (occurrenceStart && isSameDay(priorStart, occurrenceStart)) continue; // avoid double-push
+
+        const occurrence = materializeOccurrence(ev, priorStart);
+        if (occurrence && occurrence.end > dayStart && occurrence.start < dayEnd) {
+          result.push(occurrence);
+        }
+      }
     }
   }
 
@@ -535,7 +554,7 @@ function recursOnDay(ev, date) {
       // exception moved to another day
       if (exception?.start && !isSameDay(new Date(exception.start), jsStart)) continue;
 
-      return true;
+      return jsStart;
     }
   }
 

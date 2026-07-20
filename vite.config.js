@@ -9,7 +9,7 @@ export default {
   server: {
     hmr: {
       protocol: 'ws',
-      host: '192.168.178.60',
+      host: '192.168.0.102',
       port: 5173,
       clientPort: 5173,
     },
