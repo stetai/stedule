@@ -401,7 +401,7 @@ export function eventsOnDay(events, date) {
       if (occurrence) result.push(occurrence);
     }
 
-    const duration = (ev.end ?? ev.start) - ev.start;
+    const duration = (ev.end ?? ev.start) - ev.start; // TODO: even default duration should be displayed correctly
     if (duration > 0) {
       const daysBack = Math.ceil(duration / (24 * 60 * 60 * 1000));
       for (let i = 1; i <= daysBack; i++) {
