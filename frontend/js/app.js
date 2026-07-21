@@ -649,15 +649,15 @@ function renderWeekView() {
 
   const daysWrap = document.createElement('div');
   daysWrap.className = 'week-days';
+  const chipsToCheck = [];
  
   for (let i = 0; i < 7; i++) {
     const day = new Date(monday);
     day.setDate(day.getDate() + i);
-
-    const col_ctc = renderDayEvents(day);
-
-    const col = col_ctc[0];
-    const chipsToCheck = col_ctc[1];
+    const dayEvents = eventsOnDay(events, day);
+ 
+    const col = document.createElement('div');
+    col.className = 'week-day-col' + (isToday(day) ? ' today' : '');
  
     // -- Hour grid lines (Purely visual) --------------------------------
     for (let h = 0; h < 24; h++) {
@@ -668,6 +668,102 @@ function renderWeekView() {
       half.className = 'week-half-tick';
       row.appendChild(half);
       col.appendChild(row);
+    }
+    
+    // -- Positioned events ----------------------------------------------
+    // For each event, calculate top and height in pixels from the
+    // fractional hour values of start/end time.
+    const laidOut = layoutDayEvents(dayEvents);
+
+    for (const item of laidOut) {
+      const ev = item.event;
+      
+      // create event chip
+      if (ev.allDay) continue; // all-day events stay in month-chip style
+ 
+      let startH = 0;
+      if (ev.start.getDate() === day.getDate()) {
+        startH = ev.start.getHours() + ev.start.getMinutes() / 60; 
+      }
+
+      const endDate  = ev.end ?? new Date(ev.start.getTime() + 2 * 60 * 60 * 1000); // if unspecified: 2h after start
+
+      let endH = 24;
+      if (endDate.getDate() === day.getDate()) {
+        endH = endDate.getHours() + endDate.getMinutes() / 60;
+      }
+      if (endDate.getDate() === day.getDate() + 1 && endDate.getHours() === 0 && endDate.getMinutes() === 0) {
+        endH = 23.99;
+      } 
+
+      // multi-day?
+      const continuesFromPrev = ev.start.getDate() !== day.getDate() && ev.start < day;
+      const continuesToNext = endH === 24;
+
+      // Clamp to a minimum visual height so short events are still clickable
+      const duration = Math.max(endH - startH, 0.25);
+
+      const left = item.leftPct;
+      const width = item.widthPct;
+ 
+      // Chip styling
+      const chip = document.createElement('div');
+      chip.className = 'week-event';
+
+      if (item.z > 1) chip.classList.add('week-event-overlay');
+
+      if (continuesFromPrev) chip.classList.add('continues-from-prev');
+      if (continuesToNext)   chip.classList.add('continues-to-next');
+
+      chip.style.top        = `${startH * HOUR_H}px`;
+      chip.style.height     = `${duration * HOUR_H - 1}px`; //1.5px gap at the bottom
+      chip.style.left       = `calc(${left}% + 1px)`;
+      chip.style.width      = `calc(${width}% - ${CHIP_PADDING}px)`;
+      chip.style.zIndex     = item.z;
+
+      const chipStyle = getEventColorStyle(ev);
+
+      let opacity = 1;
+      let border = null;
+
+      if (endDate < now) {
+        opacity = chipStyle.dismissed ? 0.2 : 0.5;
+        if (chipStyle.dismissed) border = hexToRGBA(chipStyle.baseColor, 0.5);
+      } else {
+        opacity = chipStyle.dismissed ? 0.4 : 1;
+        if (chipStyle.dismissed) border = chipStyle.baseColor;
+      }
+
+      chip.style.background = hexToRGBA(chipStyle.baseColor, opacity);
+
+      if (border) {
+        chip.style.border = `2px solid ${border}`;
+      }
+
+      // Show title + time if there is enough vertical space
+      const titleEl = document.createElement('span');
+      titleEl.className = 'week-event-title';
+      titleEl.style.color = chipStyle.textColor;
+      titleEl.textContent = ev.title;
+
+      const timeEl = document.createElement('span');
+      timeEl.className = 'week-event-time';
+      timeEl.style.color = chipStyle.textColor;
+      if(duration * HOUR_H > 32 && !continuesFromPrev /*&& there are no collisions*/){
+        timeEl.textContent = `${formatTime(ev.start)}`;//- ${formatTime(endDate)}`;
+      }
+
+      chipsToCheck.push({titleEl, timeEl, widthPct: width});
+ 
+      chip.appendChild(titleEl);
+      chip.appendChild(timeEl);
+ 
+      chip.addEventListener('click', (e) => {
+        e.stopPropagation(); // prevent bubbling to the column click handler
+        openEditEventModal(ev);
+      });
+ 
+      col.appendChild(chip);
     }
  
     // ── Click-to-add ─────────────────────────────────────────────
@@ -696,19 +792,6 @@ function renderWeekView() {
     });
 
     daysWrap.appendChild(col)
-
-    //render titles if chip is wide enough
-    const colWidthPx = daysWrap.querySelector('.week-day-col')
-                        ?.getBoundingClientRect().width ?? 0;
-    const MIN_TITLE_PX = 0.6 * HOUR_H; // reuse HOUR_H as proxy for readable width
-
-    for (const { titleEl, timeEl, widthPct } of chipsToCheck) {
-      const effectiveWidthPx = (widthPct / 100) * colWidthPx - CHIP_PADDING;
-      if (effectiveWidthPx < MIN_TITLE_PX) {
-        titleEl.textContent = '';
-        timeEl.textContent = '';
-      }
-    }
   }
 
   body.appendChild(daysWrap);
@@ -716,10 +799,22 @@ function renderWeekView() {
   view.appendChild(scroll);
   elGrid.appendChild(view);
 
+  //render titles if chip is wide enough
+  const colWidthPx = daysWrap.querySelector('.week-day-col')
+                      ?.getBoundingClientRect().width ?? 0;
+  const MIN_TITLE_PX = 0.6 * HOUR_H; // reuse HOUR_H as proxy for readable width
+
+  for (const { titleEl, timeEl, widthPct } of chipsToCheck) {
+    const effectiveWidthPx = (widthPct / 100) * colWidthPx - CHIP_PADDING;
+    if (effectiveWidthPx < MIN_TITLE_PX) {
+      titleEl.textContent = '';
+      timeEl.textContent = '';
+    }
+  }
+
   updateNowIndicator();
 
   // Restore scroll position if one was saved
-  // TODO: save when going back to today
   if (_savedScrollTop !== null) {
     scroll.scrollTop = _savedScrollTop;
     _savedScrollTop = null;
@@ -1943,111 +2038,4 @@ function updateNowIndicator() {
     dot.style.top = `${topPx}px`;
     gutter.appendChild(dot);
   }
-}
-
-function renderDayEvents(day) {
-  // -- Positioned events ----------------------------------------------
-  // For each event, calculate top and height in pixels from the
-  // fractional hour values of start/end time.
-  const now = new Date();
-  const dayEvents = eventsOnDay(events, day);
-  const laidOut = layoutDayEvents(dayEvents);
-
-  const col = document.createElement('div');
-  col.className = 'week-day-col' + (isToday(day) ? ' today' : '');
-
-  const chipsToCheck = [];
-
-  for (const item of laidOut) {
-    const ev = item.event;
-    
-    // create event chip
-    if (ev.allDay) continue; // all-day events stay in month-chip style
-
-    let startH = 0;
-    if (ev.start.getDate() === day.getDate()) {
-      startH = ev.start.getHours() + ev.start.getMinutes() / 60; 
-    }
-
-    const endDate  = ev.end ?? new Date(ev.start.getTime() + 2 * 60 * 60 * 1000); // if unspecified: 2h after start
-
-    let endH = 24;
-    if (endDate.getDate() === day.getDate()) {
-      endH = endDate.getHours() + endDate.getMinutes() / 60;
-    }
-    if (endDate.getDate() === day.getDate() + 1 && endDate.getHours() === 0 && endDate.getMinutes() === 0) {
-      endH = 23.99;
-    } 
-
-    // multi-day?
-    const continuesFromPrev = ev.start.getDate() !== day.getDate() && ev.start < day;
-    const continuesToNext = endH === 24;
-
-    // Clamp to a minimum visual height so short events are still clickable
-    const duration = Math.max(endH - startH, 0.25);
-
-    const left = item.leftPct;
-    const width = item.widthPct;
-
-    // Chip styling
-    const chip = document.createElement('div');
-    chip.className = 'week-event';
-
-    if (item.z > 1) chip.classList.add('week-event-overlay');
-
-    if (continuesFromPrev) chip.classList.add('continues-from-prev');
-    if (continuesToNext)   chip.classList.add('continues-to-next');
-
-    chip.style.top        = `${startH * HOUR_H}px`;
-    chip.style.height     = `${duration * HOUR_H - 1}px`; //1.5px gap at the bottom
-    chip.style.left       = `calc(${left}% + 1px)`;
-    chip.style.width      = `calc(${width}% - ${CHIP_PADDING}px)`;
-    chip.style.zIndex     = item.z;
-
-    const chipStyle = getEventColorStyle(ev);
-
-    let opacity = 1;
-    let border = null;
-
-    if (endDate < now) {
-      opacity = chipStyle.dismissed ? 0.2 : 0.5;
-      if (chipStyle.dismissed) border = hexToRGBA(chipStyle.baseColor, 0.5);
-    } else {
-      opacity = chipStyle.dismissed ? 0.4 : 1;
-      if (chipStyle.dismissed) border = chipStyle.baseColor;
-    }
-
-    chip.style.background = hexToRGBA(chipStyle.baseColor, opacity);
-
-    if (border) {
-      chip.style.border = `2px solid ${border}`;
-    }
-
-    // Show title + time if there is enough vertical space
-    const titleEl = document.createElement('span');
-    titleEl.className = 'week-event-title';
-    titleEl.style.color = chipStyle.textColor;
-    titleEl.textContent = ev.title;
-
-    const timeEl = document.createElement('span');
-    timeEl.className = 'week-event-time';
-    timeEl.style.color = chipStyle.textColor;
-    if(duration * HOUR_H > 32 && !continuesFromPrev /*&& there are no collisions*/){
-      timeEl.textContent = `${formatTime(ev.start)}`;//- ${formatTime(endDate)}`;
-    }
-
-    chipsToCheck.push({titleEl, timeEl, widthPct: width});
-
-    chip.appendChild(titleEl);
-    chip.appendChild(timeEl);
-
-    chip.addEventListener('click', (e) => {
-      e.stopPropagation(); // prevent bubbling to the column click handler
-      openEditEventModal(ev);
-    });
-
-    col.appendChild(chip);
-  }
-
-  return [col, chipsToCheck];
 }
