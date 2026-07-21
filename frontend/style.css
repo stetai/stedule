@@ -1031,6 +1031,7 @@ select:focus {
   left: 0;
   right: 0;
   height: 24px; /*big target to hit for the user's huge finger*/
+  transform: translateY(100%);
   cursor: ns-resize;
   touch-action: none;
 }
