@@ -336,7 +336,8 @@ async function init() {
     }
   }
   updateNowIndicator();
-  setInterval(updateNowIndicator, 2 * 1000);
+  setInterval(updateNowIndicator, 5 * 1000);
+  setInterval(refreshTimeSensitiveUI, 5 * 1000);
 }
 
 // ------------------------------------------------------------
@@ -572,8 +573,6 @@ const ONE_HOUR_MS        = 60 * 60 * 1000;
 
 
 function renderWeekView() {
-  const now = new Date();
-
   elGrid.classList.remove('view-day');
   elGrid.classList.add('view-week');
 
@@ -607,7 +606,8 @@ function renderWeekView() {
 
     const hdr = document.createElement('div');
     hdr.className = 'week-day-header' + (isToday(day) ? ' today' : '');
-    
+    hdr.dataset.date = toDateInputValue(day);
+
     const name = document.createElement('span');
     name.className = 'wdh-name';
     //display weekday names in local format
@@ -658,7 +658,8 @@ function renderWeekView() {
  
     const col = document.createElement('div');
     col.className = 'week-day-col' + (isToday(day) ? ' today' : '');
- 
+    col.dataset.date = toDateInputValue(day); // lets refreshTimeSensitiveUI() re-check "today" later
+
     // -- Hour grid lines (Purely visual) --------------------------------
     for (let h = 0; h < 24; h++) {
       const row = document.createElement('div');
@@ -723,22 +724,13 @@ function renderWeekView() {
 
       const chipStyle = getEventColorStyle(ev);
 
-      let opacity = 1;
-      let border = null;
+      // Stash what applyChipTiming() needs so refreshTimeSensitiveUI() can
+      // re-evaluate "is this event over now?" later without redoing layout.
+      chip.dataset.endTime  = endDate.getTime();
+      chip.dataset.dismissed = chipStyle.dismissed ? '1' : '0';
+      chip.dataset.baseColor = chipStyle.baseColor;
 
-      if (endDate < now) {
-        opacity = chipStyle.dismissed ? 0.2 : 0.5;
-        if (chipStyle.dismissed) border = hexToRGBA(chipStyle.baseColor, 0.5);
-      } else {
-        opacity = chipStyle.dismissed ? 0.4 : 1;
-        if (chipStyle.dismissed) border = chipStyle.baseColor;
-      }
-
-      chip.style.background = hexToRGBA(chipStyle.baseColor, opacity);
-
-      if (border) {
-        chip.style.border = `2px solid ${border}`;
-      }
+      applyChipTiming(chip, endDate.getTime(), chipStyle.dismissed, chipStyle.baseColor);
 
       // Show title + time if there is enough vertical space
       const titleEl = document.createElement('span');
@@ -1807,6 +1799,28 @@ function getEventColorStyle(ev) {
   }*/
 }
 
+/**
+ * Sets an event chip's background/border based on whether its end time
+ * has passed. Shared by chip creation (renderWeekView) and the periodic
+ * refreshTimeSensitiveUI() sweep, so the two can't drift out of sync.
+ */
+function applyChipTiming(chip, endTime, dismissed, baseColor) {
+  const isPast = endTime < Date.now();
+
+  let opacity, border = null;
+
+  if (isPast) {
+    opacity = dismissed ? 0.2 : 0.5;
+    if (dismissed) border = hexToRGBA(baseColor, 0.5);
+  } else {
+    opacity = dismissed ? 0.4 : 1;
+    if (dismissed) border = baseColor;
+  }
+
+  chip.style.background = hexToRGBA(baseColor, opacity);
+  chip.style.border = border ? `2px solid ${border}` : '';
+}
+
 // event tiling upon collision
 
 function packColumns(events, endOf = (e) => (e.end ?? e.start)) {
@@ -2038,4 +2052,36 @@ function updateNowIndicator() {
     dot.style.top = `${topPx}px`;
     gutter.appendChild(dot);
   }
+}
+
+/**
+ * Lightweight periodic sweep for things that go stale purely because
+ * time has passed (no data changed): which column is "today", and
+ * which events are now in the past. Only touches classes/styles on
+ * elements that already exist — never removes/recreates chips or
+ * columns, so there's no rebuild flicker even with many events.
+ *
+ * Covers: today-highlighting (drifts at midnight), the now-indicator's
+ * column (indirectly, via updateNowIndicator() re-reading '.today'),
+ * and event opacity (drifts once an event's end time passes).
+ */
+function refreshTimeSensitiveUI() {
+  if (currentView !== 'week' && currentView !== 'day') return;
+
+  const todayKey = toDateInputValue(new Date());
+
+  document
+    .querySelectorAll('.week-day-col[data-date], .week-day-header[data-date]')
+    .forEach(el => el.classList.toggle('today', el.dataset.date === todayKey));
+
+  document.querySelectorAll('.week-event[data-end-time]').forEach(chip => {
+    applyChipTiming(
+      chip,
+      Number(chip.dataset.endTime),
+      chip.dataset.dismissed === '1',
+      chip.dataset.baseColor
+    );
+  });
+
+  updateNowIndicator(); // now finds the freshly-retagged '.today' column
 }
