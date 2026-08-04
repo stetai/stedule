@@ -67,6 +67,7 @@ const CATEGORIES = {
   important:   { label: 'Important',   color: '#f2d9d9',  dismissed: false },
   routine:     { label: 'Routine',     color: '#a65a4b',  dismissed: false },
   chores:      { label: 'Chores',      color: '#a63e29',  dismissed: false },
+  career:      { label: 'Career',      color: '#a62911',  dismissed: false },
   university:  { label: 'University',  color: '#a6226a',  dismissed: false },
   uni_related: { label: 'Uni-related', color: '#a64b80',  dismissed: false },
   dorm_council:{ label: 'Dorm Council',color: '#8542a6',  dismissed: false },
