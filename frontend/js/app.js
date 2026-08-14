@@ -9,21 +9,38 @@ const v = new URL(import.meta.url).search;
 const _isTauri = !!window.__TAURI__?.core;
 
 import {
-  loadSyncedSettings, saveSyncedSettings,
-  getLocalSetting, saveLocalSetting,
-  getSetting, setSetting
+  getLocalSetting,
+  getSetting,
+  loadSyncedSettings,
+  saveLocalSetting,
+  saveSyncedSettings,
+  setSetting
 } from './settings.js';
 
-import { 
-  openFile, writeFile, openFileByPath, getFilePath, reloadFile, hasFileOpen, getFileName, isFirefox, openSettingsFile
+import {
+  getFileName,
+  getFilePath,
+  hasFileOpen,
+  isFirefox,
+  openFile,
+  openFileByPath,
+  openSettingsFile,
+  writeFile
 } from './storage.js';
 
 import {
-  parseICS, serializeICS, createEvent,
-  eventsOnDay, parseRRule, getAdjWeekday,
-  isToday, startOfWeek, addTime,
-  toDateInputValue, toTimeInputValue, combineDateAndTime,
-  scheduleEventNotification, refreshNotifs,
+  addTime,
+  combineDateAndTime,
+  createEvent,
+  eventsOnDay,
+  getAdjWeekday,
+  isToday,
+  parseICS,
+  parseRRule,
+  refreshNotifs,
+  serializeICS,
+  startOfWeek,
+  toDateInputValue, toTimeInputValue
 } from './calendar.js';
 
 // ============================================================
@@ -65,14 +82,14 @@ const DEFAULT_EVENT_COLOR = '#A80808';
 const CATEGORIES = {
   '':          { label: 'No category', color: null,         dismissed: false },
   important:   { label: 'Important',   color: '#f2d9d9',  dismissed: false },
-  routine:     { label: 'Routine',     color: '#a65a4b',  dismissed: false },
-  chores:      { label: 'Chores',      color: '#a63e29',  dismissed: false },
-  career:      { label: 'Career',      color: '#a62911',  dismissed: false },
+  routine:     { label: 'Routine',     color: '#a64b4b',  dismissed: false },
+  chores:      { label: 'Chores',      color: '#a63232',  dismissed: false },
   university:  { label: 'University',  color: '#a6226a',  dismissed: false },
   uni_related: { label: 'Uni-related', color: '#a64b80',  dismissed: false },
   dorm_council:{ label: 'Dorm Council',color: '#8542a6',  dismissed: false },
   social:      { label: 'Social',      color: '#5e3aa6',  dismissed: false },
   hobby:       { label: 'Hobby',       color: '#3a4ca6',  dismissed: false },
+  career:      { label: 'Career',      color: '#176399',  dismissed: false },
   dismissed:   { label: 'Dismissed',   color: null,         dismissed: true  },
 };
 
