@@ -1746,6 +1746,27 @@ function hexToRGBA(hex, alpha) {
 }
 
 /**
+ * Multiplies two RGB colours together.
+ * @param {hex} c1 
+ * @param {*} c2 
+ */
+function multiplyHex(c1, c2) {
+  if (typeof c2 === 'number' && c2 >= 0 && c2 <= 1) {
+    const r = Math.round(parseInt(c1.slice(1,3),16) * c2);
+    const g = Math.round(parseInt(c1.slice(3,5),16) * c2);
+    const b = Math.round(parseInt(c1.slice(5,7),16) * c2);
+    return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
+  } else if (typeof c2 === 'string' && c2.startsWith('#')) {
+    const r = Math.round(parseInt(c1.slice(1,3),16) * parseInt(c2.slice(1,3),16) / 255);
+    const g = Math.round(parseInt(c1.slice(3,5),16) * parseInt(c2.slice(3,5),16) / 255);
+    const b = Math.round(parseInt(c1.slice(5,7),16) * parseInt(c2.slice(5,7),16) / 255);
+    return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
+  } else {
+    throw new Error('Invalid argument for multiplyHex');
+  }
+}
+
+/**
  * Picks black or white text so it stays readable on top of an
  * arbitrary hex background colour 
  *
@@ -1825,17 +1846,22 @@ function getEventColorStyle(ev) {
 function applyChipTiming(chip, endTime, dismissed, baseColor) {
   const isPast = endTime < Date.now();
 
-  let opacity, border = null;
+  let border = baseColor;
+  let background = baseColor;
 
-  if (isPast) {
-    opacity = dismissed ? 0.2 : 0.5;
-    if (dismissed) border = hexToRGBA(baseColor, 0.5);
+  if (isPast) {    
+    background = multiplyHex(baseColor, 0.6);
+    border = multiplyHex(baseColor, 0.6);
+
+  } 
+
+  if (dismissed) { 
+    background = hexToRGBA(background, 0.4);
   } else {
-    opacity = dismissed ? 0.4 : 1;
-    if (dismissed) border = baseColor;
+    border = null;
   }
 
-  chip.style.background = hexToRGBA(baseColor, opacity);
+  chip.style.background = background;
   chip.style.border = border ? `2px solid ${border}` : '';
 }
 
@@ -2073,15 +2099,7 @@ function updateNowIndicator() {
 }
 
 /**
- * Lightweight periodic sweep for things that go stale purely because
- * time has passed (no data changed): which column is "today", and
- * which events are now in the past. Only touches classes/styles on
- * elements that already exist — never removes/recreates chips or
- * columns, so there's no rebuild flicker even with many events.
- *
- * Covers: today-highlighting (drifts at midnight), the now-indicator's
- * column (indirectly, via updateNowIndicator() re-reading '.today'),
- * and event opacity (drifts once an event's end time passes).
+ * periodic sweep to refresh styling
  */
 function refreshTimeSensitiveUI() {
   if (currentView !== 'week' && currentView !== 'day') return;
