@@ -10,7 +10,7 @@ For example, you could use the OSS [Syncthing](https://syncthing.net/).
 
 ## Changelog
 
-- 260804, **v0.5.6-alpha**: Add category 'career'
+- 260804, **v0.5.6-alpha**: Added category 'career'; Cleaned up past event look
 - 260721, **v0.5.5-alpha**: Event opacity, now indicator and today highlighting now update real-time; fixed status message overflowing; decreased min event size to 15 min; adjusted draft resizing hitbox
 - 260719, **v0.5.4-alpha**: Fixed recurrent multi-day events; Improved categories
 - 260703, **v0.5.3-alpha**: Improved event tiling
