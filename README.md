@@ -53,8 +53,8 @@ python -m http.server 8080
 And navigate to http://localhost:8080 on the browser of your choice.
 Click on "🗋" to open your calendar (an `.ics` file). 
 
-Updating the calendar (by editing or adding an event) will write the changes to the same file on a Chromium Browser This is one of the most convenient options.
-On Firefox Browsers, a download will be triggered, allowing you to replace the original file with the new downloaded file.
+Updating the calendar (by editing or adding an event) will write the changes to the same file on a Chromium browser. This is one of the most convenient options.
+On Firefox browsers, a download will be triggered, allowing you to replace the original file with the new downloaded file.
 
 ### Linux, Windows Build
 
