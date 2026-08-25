@@ -68,6 +68,16 @@ let resizing       = false;       // Currently resizing event draft?
 let startY         = 0;           //|Default values for quickadd outline
 let startHeight    = 0;           //|
 
+// dragging an existing (already-saved) event chip
+let chipDrag = null;
+let suppressNextClick = false; // swallow the ghost click after a non-moving long-press
+
+const LONG_PRESS_MS       = 500;  // touch: hold time before a drag starts
+const DRAG_MOVE_PX        = 6;    // mouse: movement before pointerdown counts as a drag
+const LONG_PRESS_PX       = 10;   // touch: movement that cancels a pending long-press (=scroll)
+const DIM_SPEED_PX_PER_MS = 1.3;  // ripple speed for the dim/un-dim wave
+const DIM_TRANSITION_MS   = 220;  // must match .week-event.dim-transition in style.css
+
 //future dynamic access
 let _weekDayNum    = 7;
 let _firstWeekday  = 0; //0 = "Mon", 1 = "Tue", etc
@@ -134,6 +144,9 @@ const elQuickTitle = $('quick-add-title');
 const elQuickTime  = $('quick-add-time');
 const elQuickOpen  = $('quick-add-open');
 const elQuickSave  = $('quick-add-save');
+
+const elDragDropZone   = $('drag-drop-zone');
+const elDragCancelZone = $('drag-cancel-zone');
 
 const elScopeOverlay = $('scope-overlay');
 const elScopeDesc    = $('scope-description');
@@ -769,9 +782,13 @@ function renderWeekView() {
       chip.appendChild(timeEl);
  
       chip.addEventListener('click', (e) => {
-        e.stopPropagation(); // prevent bubbling to the column click handler
+        // A long-press that turned into a drag can still end in a native "click"
+        if (suppressNextClick) { suppressNextClick = false; return; }
+        e.stopPropagation();
         openEditEventModal(ev);
       });
+
+      chip.addEventListener('pointerdown', (e) => onChipPointerDown(e, chip, ev));
  
       col.appendChild(chip);
     }
@@ -1049,12 +1066,12 @@ function stopMove() {
   document.removeEventListener('pointerup', stopMove);
 }
 
-function autoScrollDuringDrag(e) {
+function autoScrollDuringDrag(e, boundaryEl = elQuickBar) {
 
   if (!weekScrollEl) return;
 
   const rect = weekScrollEl.getBoundingClientRect();
-  const quickBarRect = elQuickBar.getBoundingClientRect();
+  const boundaryRect = boundaryEl.getBoundingClientRect();
 
   const edge = 40;        // trigger zone
 
@@ -1066,7 +1083,7 @@ function autoScrollDuringDrag(e) {
   const maxScroll = Math.max(0, gridHeight - visibleHeight);
 
   const distTop = rect.top + edge - e.clientY;
-  const distBot = e.clientY - (quickBarRect.top - edge);
+  const distBot = e.clientY - (boundaryRect.top - edge);
 
   if (distTop > 0) {
     weekScrollEl.scrollTop =
@@ -1116,6 +1133,311 @@ function stopResize() {
 
   document.removeEventListener('pointermove', onResize);
   document.removeEventListener('pointerup', stopResize);
+}
+
+// --------------------------------------------------------
+// dragging an existing event chip
+// --------------------------------------------------------
+//
+// Mouse and touch both start here on pointerdown, then branch:
+//   mouse       -> onChipPointerMovePending promotes to a drag once the
+//                  pointer has moved DRAG_MOVE_PX (so a plain click still
+//                  works normally)
+//   touch / pen -> a LONG_PRESS_MS timer promotes to a drag; moving more
+//                  than LONG_PRESS_PX before it fires cancels the timer
+//                  instead, so the page can still be scrolled normally
+
+function onChipPointerDown(e, chip, ev) {
+  if (e.target.closest('.week-event-resize')) return; // no resize handle on chips (yet)
+  if (chipDrag) return;                                // a drag is already in progress
+  if (e.pointerType === 'mouse' && e.button !== 0) return; // left button only
+
+  chipDrag = {
+    chip, ev,
+    pointerId: e.pointerId,
+    pointerType: e.pointerType,
+    startX: e.clientX,
+    startY: e.clientY,
+    longPressTimer: null,
+    active: false,
+    col: chip.parentNode,
+  };
+
+  if (e.pointerType !== 'mouse') {
+    chipDrag.longPressTimer = setTimeout(() => {
+      if (!chipDrag || chipDrag.chip !== chip) return;
+      beginChipDrag(e);
+    }, LONG_PRESS_MS);
+  }
+
+  document.addEventListener('pointermove', onChipPointerMovePending);
+  document.addEventListener('pointerup', onChipPointerUpPending);
+}
+
+function onChipPointerMovePending(e) {
+  if (!chipDrag || chipDrag.active) return;
+  if (e.pointerId !== chipDrag.pointerId) return;
+
+  const dist = Math.hypot(e.clientX - chipDrag.startX, e.clientY - chipDrag.startY);
+
+  if (chipDrag.pointerType === 'mouse') {
+    if (dist > DRAG_MOVE_PX) beginChipDrag(e);
+  } else if (dist > LONG_PRESS_PX) { // scrolling.
+    cancelPendingChipDrag();
+  }
+}
+
+function onChipPointerUpPending(e) {
+  if (!chipDrag || chipDrag.active) return;
+  if (e.pointerId !== chipDrag.pointerId) return;
+  cancelPendingChipDrag(); // click if released before a drag started
+}
+
+function cancelPendingChipDrag() {
+  if (!chipDrag) return;
+  clearTimeout(chipDrag.longPressTimer);
+  document.removeEventListener('pointermove', onChipPointerMovePending);
+  document.removeEventListener('pointerup', onChipPointerUpPending);
+  chipDrag = null;
+}
+
+function beginChipDrag(e) {
+  document.removeEventListener('pointermove', onChipPointerMovePending);
+  document.removeEventListener('pointerup', onChipPointerUpPending);
+  clearTimeout(chipDrag.longPressTimer);
+
+  const { chip } = chipDrag;
+
+  closeQuickAdd(); // a draft and a chip-drag shouldn't be open at once
+
+  chipDrag.active         = true;
+  chipDrag.origTop        = chip.style.top;
+  chipDrag.origLeft       = chip.style.left;
+  chipDrag.origWidth      = chip.style.width;
+  chipDrag.origHeight     = chip.style.height;
+  chipDrag.origCol        = chip.parentNode;
+  chipDrag.startTop       = chip.offsetTop;
+  chipDrag.startScrollTop = weekScrollEl.scrollTop;
+  chipDrag.newStart       = chipDrag.ev.start;
+  chipDrag.newEnd         = chipDrag.ev.end;
+
+  chip.setPointerCapture(e.pointerId);
+
+  // Widen the chip to the full column width for the duration of the drag.
+  chip.style.left  = '0px';
+  chip.style.right = '0px';
+  chip.style.width = 'auto';
+
+  chip.classList.add('dragging');
+
+  const chipRect = chip.getBoundingClientRect();
+  rippleDim(chipRect.left + chipRect.width / 2, chipRect.top + chipRect.height / 2, true, chip);
+
+  elDragDropZone.classList.add('open');
+
+  document.addEventListener('pointermove', onChipDragMove);
+  document.addEventListener('pointerup', onChipDragEnd);
+  document.addEventListener('pointercancel', onChipDragEnd);
+}
+
+function onChipDragMove(e) {
+  if (!chipDrag?.active) return;
+  if (e.pointerId !== chipDrag.pointerId) return;
+
+  document.body.style.overflow = 'hidden';
+
+  const { chip } = chipDrag;
+
+  // Same geometry-based column-switch hit-test as onMove()
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const newCol = el?.closest('.week-day-col');
+
+  if (newCol && newCol !== chipDrag.col) {
+    chipDrag.col = newCol;
+    newCol.appendChild(chip);
+  }
+
+  const scrollDelta = weekScrollEl.scrollTop - chipDrag.startScrollTop;
+  const dy = e.clientY - chipDrag.startY + scrollDelta;
+
+  const snap = HOUR_H / 4; // 15 minutes
+  let newTop = Math.round((chipDrag.startTop + dy) / snap) * snap;
+
+  const maxTop = 24 * HOUR_H - chip.offsetHeight;
+  newTop = Math.max(0, Math.min(newTop, maxTop));
+
+  chip.style.top = `${newTop}px`;
+
+  // Recompute the proposed new start/end from the current column + top.
+  const monday = startOfWeek(currentDate);
+  const colIndex = [...chipDrag.col.parentNode.children].indexOf(chipDrag.col);
+  const newDate = new Date(monday);
+  newDate.setDate(monday.getDate() + colIndex);
+
+  const startHours = newTop / HOUR_H;
+  newDate.setHours(Math.floor(startHours), Math.round((startHours % 1) * 60), 0, 0);
+
+  const duration = chipDrag.ev.end - chipDrag.ev.start;
+  chipDrag.newStart = newDate;
+  chipDrag.newEnd   = new Date(newDate.getTime() + duration);
+
+  // Cancel-zone hover feedback. The reserved prev/next-week zones (see
+  // index.html) have no logic of their own yet, so dropping on any part
+  // of the bar - cancel zone or reserved zone alike - currently cancels.
+  const overDropZone = !!el?.closest('.drag-zone');
+  chip.classList.toggle('will-cancel', overDropZone);
+  elDragCancelZone.classList.toggle('armed', !!el?.closest('.drag-zone-cancel'));
+
+  autoScrollDuringDrag(e, elDragDropZone);
+}
+
+function onChipDragEnd(e) {
+  if (!chipDrag?.active) return;
+  if (e.pointerId !== chipDrag.pointerId) return;
+
+  document.body.style.overflow = '';
+  document.removeEventListener('pointermove', onChipDragMove);
+  document.removeEventListener('pointerup', onChipDragEnd);
+  document.removeEventListener('pointercancel', onChipDragEnd);
+
+  const { chip, ev, newStart, newEnd } = chipDrag;
+
+  try { chip.releasePointerCapture(e.pointerId); } catch { /* already released */ }
+
+  const cancelled = chip.classList.contains('will-cancel');
+
+  elDragDropZone.classList.remove('open');
+  elDragCancelZone.classList.remove('armed');
+
+  // Un-dim everyone else, radiating outward from wherever this was let go.
+  const waitMs = rippleDim(e.clientX, e.clientY, false, chip);
+
+  if (cancelled) {
+    returnChipToOrigin(chipDrag);
+    chipDrag = null;
+    setTimeout(cleanupDimClasses, waitMs);
+    return;
+  }
+
+  chip.classList.remove('dragging', 'will-cancel');
+  chipDrag = null;
+  suppressNextClick = true; // guards against the ghost click, see chip's click listener
+
+  const unchanged = newStart.getTime() === ev.start.getTime() && newEnd.getTime() === ev.end.getTime();
+
+  // Finish un-dim ripple before rerendering
+  setTimeout(() => {
+    cleanupDimClasses();
+    if (unchanged) {
+      // Don't save but rerender to ensure the chip is back in original position
+      renderCalendar();
+    } else {
+      commitDraggedEvent(ev, newStart, newEnd);
+    }
+  }, waitMs);
+}
+
+/**
+ * Animates a cancelled drag's chip back to its pre-drag position, size and column.
+ */
+function returnChipToOrigin(drag) {
+  const { chip, origCol, origTop, origLeft, origWidth, origHeight } = drag;
+
+  const beforeRect = chip.getBoundingClientRect();
+
+  if (chip.parentNode !== origCol) origCol.appendChild(chip);
+
+  const parentRect = origCol.getBoundingClientRect();
+
+  chip.style.transition = 'none';
+  chip.style.top    = `${beforeRect.top  - parentRect.top}px`;
+  chip.style.left   = `${beforeRect.left - parentRect.left}px`;
+  chip.style.right  = '';
+  chip.style.width  = `${beforeRect.width}px`;
+  chip.style.height = `${beforeRect.height}px`;
+
+  void chip.offsetHeight; // force layout: commit change before animation.
+
+  chip.classList.add('returning');
+  chip.style.transition = '';
+
+  requestAnimationFrame(() => {
+    chip.style.top    = origTop;
+    chip.style.left   = origLeft;
+    chip.style.width  = origWidth;
+    chip.style.height = origHeight;
+  });
+
+  chip.addEventListener('transitionend', function done(ev) {
+    if (ev.propertyName !== 'top') return; // one of four properties animate together; fire once
+    chip.removeEventListener('transitionend', done);
+    chip.classList.remove('returning', 'dragging', 'will-cancel');
+  });
+}
+
+/**
+ * Persists a dragged event's new start/end. 
+ * Recurring occurrences get a sparse per-occurrence exception.
+ */
+function commitDraggedEvent(draggedEv, newStart, newEnd) {
+  const idx = events.findIndex(e => e.id === (draggedEv.masterId ?? draggedEv.id));
+  if (idx === -1) return;
+
+  events[idx] = draggedEv.masterId
+    ? {
+        ...events[idx],
+        exceptions: {
+          ...events[idx].exceptions,
+          [draggedEv.originalDate]: {
+            ...events[idx].exceptions?.[draggedEv.originalDate],
+            start: newStart,
+            end: newEnd,
+          },
+        },
+      }
+    : { ...events[idx], start: newStart, end: newEnd };
+
+  renderCalendar();
+  save();
+  refreshNotifs(events);
+}
+
+/**
+ * Fades every .week-event chip except `exceptChip` in (dimming = false) or
+ * out (dimming = true), with each chip's transition-delay set proportional
+ * to its distance from (originX, originY) to create ripple effect.
+ * Returns how many ms until the slowest chip finishes
+ */
+function rippleDim(originX, originY, dimming, exceptChip = null) {
+  const chips = [...document.querySelectorAll('.week-event')].filter(c => c !== exceptChip);
+
+  let maxDelay = 0;
+
+  for (const chip of chips) {
+    const r = chip.getBoundingClientRect();
+    const dx = (r.left + r.width / 2) - originX;
+    const dy = (r.top  + r.height / 2) - originY;
+    const delay = Math.hypot(dx, dy) / DIM_SPEED_PX_PER_MS;
+    maxDelay = Math.max(maxDelay, delay);
+
+    chip.classList.add('dim-transition');
+    chip.style.transitionDelay = `${delay}ms`;
+  }
+
+  // Wait a frame so every chip's transition-delay is registered before the
+  // opacity class below is applied
+  requestAnimationFrame(() => {
+    for (const chip of chips) chip.classList.toggle('dimmed', dimming);
+  });
+
+  return maxDelay + DIM_TRANSITION_MS;
+}
+
+function cleanupDimClasses() {
+  document.querySelectorAll('.week-event.dim-transition').forEach(chip => {
+    chip.classList.remove('dim-transition', 'dimmed');
+    chip.style.transitionDelay = '';
+  });
 }
 
 function updateQuickBar() {

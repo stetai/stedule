@@ -517,6 +517,46 @@ select {
   gap: 6px;
 }
 
+/* --------------------------------------------------------
+   drag-drop zone (dragging an existing event chip)
+   Reuses .quick-add-bar for identical size/position/slide-in
+   behaviour; only the internal layout differs.
+-------------------------------------------------------- */
+
+.drag-drop-zone {
+  flex-direction: row;
+  align-items: stretch;
+  padding: 0;
+  gap: 0;
+}
+
+.drag-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.drag-zone-cancel {
+  flex: 1;
+  transition: background 0.15s, color 0.15s;
+}
+
+.drag-zone-cancel.armed {
+  background: var(--color-danger);
+  color: var(--color-text);
+}
+
+/* Reserved for a future "flip week while dragging" gesture. Deliberately
+   understated (no hover/armed state) since they don't do anything yet. */
+.drag-zone-prev-week,
+.drag-zone-next-week {
+  flex: 0 0 56px;
+  opacity: 0.4;
+  font-size: 1.1rem;
+}
+
 /* ============================================================
    FORM FIELDS
 ============================================================ */
@@ -971,6 +1011,9 @@ select:focus {
   border-top: 1px solid rgba(0,0,0,0.3);
   border-left: 2px solid rgba(0,0,0,0.3);
   border-bottom: 2px solid rgba(0,0,0,0.3);
+  /* Suppress iOS's long-press callout (Copy/Share popup) so a long-press
+     reads as "start dragging" instead of "show me a text menu". */
+  -webkit-touch-callout: none;
 }
  
 .week-event:hover {
@@ -1034,6 +1077,51 @@ select:focus {
   transform: translateY(100%);
   cursor: ns-resize;
   touch-action: none;
+}
+
+/* --------------------------------------------------------
+   dragging an existing event chip
+-------------------------------------------------------- */
+
+.week-event.dragging {
+  z-index: 100 !important;
+  opacity: 1 !important;
+  filter: none !important;
+  box-shadow: var(--shadow-lg);
+  cursor: grabbing;
+  touch-action: none;
+}
+
+/* preview the "let go to cancel" outcome. */
+.week-event.will-cancel {
+  filter: grayscale(0.7) brightness(0.85) !important;
+}
+
+/* dim */
+.week-event.dim-transition {
+  transition-property: opacity;
+  transition-duration: 220ms;
+  transition-timing-function: ease;
+}
+
+.week-event.dimmed {
+  opacity: 0.25;
+}
+
+/* Cancelling a drag */
+.week-event.returning {
+  transition: top 260ms cubic-bezier(.2,.8,.2,1),
+              left 260ms cubic-bezier(.2,.8,.2,1),
+              width 260ms cubic-bezier(.2,.8,.2,1),
+              height 260ms cubic-bezier(.2,.8,.2,1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .week-event.dim-transition,
+  .week-event.returning {
+    transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
+  }
 }
 
 /* General styling */
