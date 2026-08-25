@@ -1073,7 +1073,7 @@ function autoScrollDuringDrag(e, boundaryEl = elQuickBar) {
   const rect = weekScrollEl.getBoundingClientRect();
   const boundaryRect = boundaryEl.getBoundingClientRect();
 
-  const edge = 40;        // trigger zone
+  const edge = 200;        // trigger zone
 
   const grid = weekScrollEl.querySelector('.week-body');
 
@@ -1094,6 +1094,8 @@ function autoScrollDuringDrag(e, boundaryEl = elQuickBar) {
     weekScrollEl.scrollTop =
       Math.min(maxScroll, weekScrollEl.scrollTop + distBot * 0.1);
   }
+
+  if (weekScrollEl) _savedScrollTop = weekScrollEl.scrollTop;
 }
 
 function onResize(e) {
