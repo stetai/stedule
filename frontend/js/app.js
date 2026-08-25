@@ -938,7 +938,7 @@ function startQuickAdd(col, startDate) {
     
     startScrollTop = weekScrollEl.scrollTop;
 
-    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointermove', onDraftMove);
     document.addEventListener('pointerup', stopMove);
   });
 
@@ -995,7 +995,7 @@ function startQuickAdd(col, startDate) {
   elQuickTitle.focus({ preventScroll: true });
 }
 
-function onMove(e) {
+function onDraftMove(e) {
   if (!moving) return;
 
   document.body.style.overflow = "hidden";
@@ -1062,7 +1062,7 @@ function stopMove() {
 
   document.body.style.overflow = "";
 
-  document.removeEventListener('pointermove', onMove);
+  document.removeEventListener('pointermove', onDraftMove);
   document.removeEventListener('pointerup', stopMove);
 }
 
@@ -1184,7 +1184,7 @@ function onChipPointerMovePending(e) {
 
   if (chipDrag.pointerType === 'mouse') {
     if (dist > DRAG_MOVE_PX) beginChipDrag(e);
-  } else if (dist > LONG_PRESS_PX) { // scrolling.
+  } else if (dist > LONG_PRESS_PX) { // scrolling
     cancelPendingChipDrag();
   }
 }
@@ -1265,7 +1265,7 @@ function onChipDragMove(e) {
   const snap = HOUR_H / 4; // 15 minutes
   let newTop = Math.round((chipDrag.startTop + dy) / snap) * snap;
 
-  const maxTop = 24 * HOUR_H - chip.offsetHeight;
+  const maxTop = 23.75 * HOUR_H;
   newTop = Math.max(0, Math.min(newTop, maxTop));
 
   chip.style.top = `${newTop}px`;
