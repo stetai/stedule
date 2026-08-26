@@ -1156,6 +1156,8 @@ function onChipPointerDown(e, chip, ev) {
   if (chipDrag) return;                                // a drag is already in progress
   if (e.pointerType === 'mouse' && e.button !== 0) return; // left button only
 
+  if (e.pointerType !== 'mouse') chip.style.touchAction = 'none';
+
   chipDrag = {
     chip, ev,
     pointerId: e.pointerId,
@@ -1200,6 +1202,7 @@ function onChipPointerUpPending(e) {
 function cancelPendingChipDrag() {
   if (!chipDrag) return;
   clearTimeout(chipDrag.longPressTimer);
+  chipDrag.chip.style.touchAction = '';
   document.removeEventListener('pointermove', onChipPointerMovePending);
   document.removeEventListener('pointerup', onChipPointerUpPending);
   chipDrag = null;
@@ -1316,6 +1319,8 @@ function onChipDragEnd(e) {
   document.removeEventListener('pointercancel', onChipDragEnd);
 
   const { chip, ev, newStart, newEnd } = chipDrag;
+
+  chip.style.touchAction = '';
 
   try { chip.releasePointerCapture(e.pointerId); } catch { /* already released */ }
 
