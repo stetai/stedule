@@ -1283,6 +1283,12 @@ function onChipDragMove(e) {
   chipDrag.newStart = newDate;
   chipDrag.newEnd   = new Date(newDate.getTime() + duration);
 
+
+  const timeEl = chip.querySelector('.week-event-time');
+  if (timeEl) {
+    timeEl.textContent = formatTime(chipDrag.newStart);
+  }
+
   // Cancel-zone hover feedback. The reserved prev/next-week zones (see
   // index.html) have no logic of their own yet, so dropping on any part
   // of the bar - cancel zone or reserved zone alike - currently cancels.
