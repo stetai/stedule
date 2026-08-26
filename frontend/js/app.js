@@ -1232,6 +1232,11 @@ function beginChipDrag(e) {
   chip.style.right = '0px';
   chip.style.width = 'auto';
 
+  const end = chip.ev.end ?? chip.ev.start + 1.5;
+  const duration = end - chip.ev.start;
+  const chipHeight = duration * HOUR_H;
+  chip.style.height = chipHeight;
+
   chip.classList.add('dragging');
 
   const chipRect = chip.getBoundingClientRect();
@@ -1248,7 +1253,7 @@ function onChipDragMove(e) {
   if (!chipDrag?.active) return;
   if (e.pointerId !== chipDrag.pointerId) return;
 
-  document.body.style.overflow = 'hidden';
+  document.body.style.overflow = 'hidden'; // TODO: Is this where we can display event length exceeding 24h? 
 
   const { chip } = chipDrag;
 
