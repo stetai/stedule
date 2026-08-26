@@ -1075,7 +1075,7 @@ function autoScrollDuringDrag(e, boundaryEl = elQuickBar) {
   const rect = weekScrollEl.getBoundingClientRect();
   const boundaryRect = boundaryEl.getBoundingClientRect();
 
-  const edge = 200;        // trigger zone
+  const edge = 60;        // trigger zone
 
   const grid = weekScrollEl.querySelector('.week-body');
 
