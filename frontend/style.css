@@ -358,7 +358,11 @@ select {
   transition: opacity 0.1s;
 }
 
-.event-chip:hover { opacity: 0.85; }
+.event-chip:hover { 
+  z-index: 10;
+  border-left: 2px solid rgba(1,1,1,0.3);
+  transition: border-left 0.15s;
+}
 
 /* ============================================================
    MODAL
