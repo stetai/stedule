@@ -1116,9 +1116,14 @@ select:focus {
               height 260ms cubic-bezier(.2,.8,.2,1);
 }
 
+.week-event.flip-transition {
+  transition: transform 260ms cubic-bezier(.2,.8,.2,1);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .week-event.dim-transition,
-  .week-event.returning {
+  .week-event.returning 
+  .week-event.flip-transition {
     transition-duration: 1ms !important;
     transition-delay: 0ms !important;
   }

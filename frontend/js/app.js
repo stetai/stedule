@@ -753,6 +753,8 @@ function renderWeekView() {
       chip.style.width      = `calc(${width}% - ${CHIP_PADDING}px)`;
       chip.style.zIndex     = item.z;
 
+      chip.dataset.flipKey = ev.masterId ? `${ev.masterId}::${ev.originalDate}` : `id::${ev.id}`;
+
       const chipStyle = getEventColorStyle(ev);
 
       // Stash what applyChipTiming() needs so refreshTimeSensitiveUI() can
@@ -1384,6 +1386,51 @@ function returnChipToOrigin(drag) {
 }
 
 /**
+ * smoothly animates every .week-event chip whose position or size changed
+ */
+function flipRerender(applyChanges) {
+  const before = new Map();
+  document.querySelectorAll('.week-event[data-flip-key]').forEach(chip => {
+    before.set(chip.dataset.flipKey, chip.getBoundingClientRect());
+  });
+ 
+  applyChanges();
+ 
+  document.querySelectorAll('.week-event[data-flip-key]').forEach(chip => {
+    const oldRect = before.get(chip.dataset.flipKey);
+    if (!oldRect) return; // a genuinely new chip - nothing to animate from
+ 
+    const newRect = chip.getBoundingClientRect();
+    const dx = oldRect.left - newRect.left;
+    const dy = oldRect.top  - newRect.top;
+    const sx = oldRect.width  / newRect.width;
+    const sy = oldRect.height / newRect.height;
+ 
+    const unchanged = Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5
+                    && Math.abs(sx - 1) < 0.01 && Math.abs(sy - 1) < 0.01;
+    if (unchanged) return;
+ 
+    chip.style.transformOrigin = 'top left';
+    chip.style.transition = 'none';
+    chip.style.transform  = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+ 
+    void chip.offsetHeight; // force layout: commit the instant "invert" above...
+ 
+    chip.classList.add('flip-transition'); // ...before letting this transition it away.
+    chip.style.transition = '';
+    requestAnimationFrame(() => { chip.style.transform = ''; });
+ 
+    chip.addEventListener('transitionend', function done(e) {
+      if (e.propertyName !== 'transform') return;
+      chip.removeEventListener('transitionend', done);
+      chip.classList.remove('flip-transition');
+      chip.style.transformOrigin = '';
+    });
+  });
+}
+
+
+/**
  * Persists a dragged event's new start/end. 
  * Recurring occurrences get a sparse per-occurrence exception.
  */
@@ -1405,7 +1452,7 @@ function commitDraggedEvent(draggedEv, newStart, newEnd) {
       }
     : { ...events[idx], start: newStart, end: newEnd };
 
-  renderCalendar();
+  flipRerender(renderCalendar);
   save();
   refreshNotifs(events);
 }
