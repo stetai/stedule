@@ -646,6 +646,10 @@ function renderWeekView() {
     const hdr = document.createElement('div');
     hdr.className = 'week-day-header' + (isToday(day) ? ' today' : '');
     hdr.dataset.date = toDateInputValue(day);
+    hdr.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openNewEventModal(day, '', day, true);
+    });
 
     const name = document.createElement('span');
     name.className = 'wdh-name';
@@ -1031,6 +1035,10 @@ function createDayCell(date, dayEvents = []) {
   const label       = document.createElement('span');
   label.className   = 'day-number';
   label.textContent = date.getDate();
+  label.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openNewEventModal(date, '', date, true);
+  });
   cell.appendChild(label);
 
   // Event chips
