@@ -246,7 +246,7 @@ export function parseICS(rawText) {
  */
 function checkQuality(events) {
 
-  recurringEvents = events.filter(e => e.rrule);
+  const recurringEvents = events.filter(e => e.rrule);
 
   // Check if an exception is moved further than a year from the original date 
   // (not supported by notifications scheduling)

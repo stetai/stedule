@@ -37,6 +37,7 @@ import {
   endOfDay,
   eventsOnDay,
   getAdjWeekday,
+  isSameDay,
   isToday,
   parseICS,
   parseRRule,
@@ -731,22 +732,22 @@ function renderWeekView() {
       if (ev.allDay) continue; // all-day events in the band above
  
       let startH = 0;
-      if (ev.start.getDate() === day.getDate()) {
+      if (isSameDay(ev.start, day)) {
         startH = ev.start.getHours() + ev.start.getMinutes() / 60; 
       }
 
       const endDate  = ev.end ?? new Date(ev.start.getTime() + 2 * 60 * 60 * 1000); // if unspecified: 2h after start
 
       let endH = 24;
-      if (endDate.getDate() === day.getDate()) {
+      if (isSameDay(endDate, day)) {
         endH = endDate.getHours() + endDate.getMinutes() / 60;
       }
-      if (endDate.getDate() === day.getDate() + 1 && endDate.getHours() === 0 && endDate.getMinutes() === 0) {
+      if (isSameDay(endDate, addDays(day, 1)) && endDate.getHours() === 0 && endDate.getMinutes() === 0) {
         endH = 23.99;
       } 
 
       // multi-day?
-      const continuesFromPrev = ev.start.getDate() !== day.getDate() && ev.start < day;
+      const continuesFromPrev = !isSameDay(ev.start, day) && ev.start < day;
       const continuesToNext = endH === 24;
 
       // Clamp to a minimum visual height so short events are still clickable
