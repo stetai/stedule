@@ -30,6 +30,15 @@
   -->
   <script src="https://cdn.jsdelivr.net/npm/ical.js/build/ical.js"></script>
   <script type="module" src="js/app.js"></script>
+  <script>
+    setTimeout(() => {
+      const gridEmpty   = document.getElementById('calendar-grid')?.children.length === 0;
+      const stillDefault = document.getElementById('current-period')?.textContent === 'Hmmm...';
+      if (gridEmpty && stillDefault) {
+        document.getElementById('status-bar').textContent = 'Internet access required to load dependencies when using Stedule in localhost. Check your connection and reload the page.';
+      }
+    }, 3000);
+  </script>
 
   <link rel="icon" type="image/png" href="../images/logoStedule01.2.png" />
 </head>
