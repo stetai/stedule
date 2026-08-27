@@ -103,13 +103,19 @@
           <input type="text" id="event-title" placeholder="Event name" autocomplete="off" enterkeyhint="done"/>
         </div>
 
+        <div class="field-group field-inline">
+          <input type="checkbox" id="event-allday" />
+          <label class="radio-label" for="event-allday">All day</label>
+        </div>
+
         <div class="field-group">
           <label for="event-start-date">Time</label>
           <div class="field-group field-row">
             <div class="field-group">
               <input type="date" id="event-start-date" />
             </div>
-            <div class="field-group">
+            <!-- .time-field: greyed out (but keeps its value) while all-day is on -->
+            <div class="field-group time-field">
               <input type="time" id="event-start-time"/>
             </div>
           </div>
@@ -117,7 +123,7 @@
             <div class="field-group">
               <input type="date" id="event-end-date" />
             </div>
-            <div class="field-group">
+            <div class="field-group time-field">
               <input type="time" id="event-end-time"/>
             </div>
           </div>

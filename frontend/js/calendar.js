@@ -159,9 +159,11 @@ function occurrencesInWindow(ev, windowStart, windowEnd) {
  * @param {string} [params.color='#A80808']
  * @param {boolean}[params.allDay=false]
  * @param {string|null}[params.categories=null]
+ * @param {string|null}[params.timedStart=null] "HH:MM". Persisted as X-STEDULE-TIMED-START.
+ * @param {string|null}[params.timedEnd=null]   "HH:MM"
  * @returns {object} event
  */
-export function createEvent({ title, start, end, description = '', color = '#A80808', allDay = false, rrule = null, categories = null }) {
+export function createEvent({ title, start, end, description = '', color = '#A80808', allDay = false, rrule = null, categories = null, timedStart = null, timedEnd = null }) {
   return {
     id: crypto.randomUUID(),
     title,
@@ -170,6 +172,8 @@ export function createEvent({ title, start, end, description = '', color = '#A80
     description,
     color,
     allDay,
+    timedStart,
+    timedEnd,
     rrule,
     categories,
     exdates: [],
@@ -206,14 +210,25 @@ export function parseICS(rawText) {
       ? (categoryProp[0] ?? null) // TODO: support multiple categories, return the first for now
       : (categoryProp ?? null);
 
+    // An all-day event is one whose DTSTART carries a DATE (not DATE-TIME) value.
+    const allDay = ev.startDate?.isDate ?? false;
+
+    const start = ev.startDate?.toJSDate();
+    let end     = ev.endDate?.toJSDate();
+
+    // convert from exclusive DTEND to inclusive end
+    if (allDay && end) end = new Date(end.getTime() - 1);
+
     return {
       id: ev.uid ?? crypto.randomUUID(),
       title: ev.summary ?? '(No title)',
-      start: ev.startDate?.toJSDate(),
-      end: ev.endDate?.toJSDate(),
+      start,
+      end,
       description: ev.description ?? '',
       color: v.getFirstPropertyValue('color') ?? '#A80808',
-      allDay: ev.startDate?.isDate ?? false,
+      allDay,
+      timedStart: v.getFirstPropertyValue('x-stedule-timed-start') ?? null, // persist previous time
+      timedEnd:   v.getFirstPropertyValue('x-stedule-timed-end')   ?? null,
       rrule: rruleProp ? rruleProp.toString() : null,
       categories,
       exdates: exdateProps.map(p => p.getFirstValue().toJSDate()),
@@ -272,16 +287,44 @@ export function serializeICS(events) {
 
     vevent.addPropertyWithValue('uid', ev.id);
     vevent.addPropertyWithValue('summary', ev.title);
-    vevent.addPropertyWithValue(
-      'dtstart',
-      ICAL.Time.fromJSDate(ev.start, ev.allDay)
-    );
 
-    if (ev.end) {
+    if (ev.allDay) {
+      vevent.addPropertyWithValue(
+        'dtstart',
+        ICAL.Time.fromDateString(toDateInputValue(ev.start))
+      );
+
+      // DTEND is exclusive
+      const exclusiveEnd = new Date(ev.end ?? ev.start);
+      exclusiveEnd.setHours(0, 0, 0, 0);
+      exclusiveEnd.setDate(exclusiveEnd.getDate() + 1);
+
       vevent.addPropertyWithValue(
         'dtend',
-        ICAL.Time.fromJSDate(ev.end, ev.allDay)
+        ICAL.Time.fromDateString(toDateInputValue(exclusiveEnd))
       );
+
+    } else {
+      vevent.addPropertyWithValue(
+        'dtstart',
+        ICAL.Time.fromJSDate(ev.start, false)
+      );
+
+      if (ev.end) {
+        vevent.addPropertyWithValue(
+          'dtend',
+          ICAL.Time.fromJSDate(ev.end, false)
+        );
+      }
+    }
+
+    // Non-standard properties (RFC 5545 §3.8.8.2): other clients ignore these.
+    if (ev.timedStart) {
+      vevent.addPropertyWithValue('x-stedule-timed-start', ev.timedStart);
+    }
+
+    if (ev.timedEnd) {
+      vevent.addPropertyWithValue('x-stedule-timed-end', ev.timedEnd);
     }
 
     if (ev.description) {
@@ -351,10 +394,9 @@ export function eventsOnDay(events, date) {
 
     if (!ev.rrule) {
 
-      if (
-           (ev.start < dayEnd && ev.start > dayStart) // starts on day
-        || (ev.end < dayEnd && ev.end > dayStart) // ends on day
-        || (ev.start < dayStart && ev.end > dayEnd)) { // covers day
+      const evEnd = ev.end ?? ev.start;
+
+      if (ev.start <= dayEnd && evEnd > dayStart) {
         result.push(ev);
       }
 
@@ -507,6 +549,7 @@ export function combineDateAndTime(dateStr, timeStr) {
 
 /**
  * Adds a time to a date.
+ * TODO: Account for DST
  * @param {Date} date 
  * @param {float} hours
  * @returns {Date}
@@ -515,6 +558,34 @@ export function addTime(date, hours) {
   const d = new Date(date);
   d.setTime(d.getTime() + Math.floor(hours * 60 * 60 * 1000))
   return d;
+}
+
+/**
+ * Adds a whole number of calendar days to a date.
+ * Uses setDate() rather than millisecond arithmetic so DST transitions
+ * (a local day is 23 or 25 hours twice a year) can't shift the result.
+ * @param {Date} date
+ * @param {number} n
+ * @returns {Date}
+ */
+export function addDays(date, n) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + n);
+  return d;
+}
+
+/**
+ * Whole calendar days between two dates, ignoring the time of day.
+ * Goes via Date.UTC() because (b - a) / 86400000 is off by one across a
+ * DST boundary.
+ * @param {Date} a
+ * @param {Date} b
+ * @returns {number} positive if b is later than a
+ */
+export function dayDiff(a, b) {
+  const ua = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
+  const ub = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+  return Math.round((ub - ua) / 86400000);
 }
 
 export function parseRRule(rruleStr) {

@@ -581,6 +581,31 @@ select {
   flex: 1;
 }
 
+/* Inline fields */
+.field-inline {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.field-inline input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+/* Greyed out if all-day is checked */
+.time-field.is-disabled {
+  opacity: 0.45;
+}
+
+.time-field input:disabled {
+  cursor: not-allowed;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+}
+
 label {
   font-size: 0.78rem;
   font-weight: 600;
@@ -870,6 +895,72 @@ select:focus {
   background: var(--color-today-bg2);
 }
 
+/* -- All-day band ---------------------------------------------------- */
+
+.week-allday-row {
+  display: flex;
+  flex-shrink: 0;
+  padding-right: 1px;
+  border-bottom: 1px solid var(--color-border);
+  /* max-height is set inline by renderAllDayRow() from the lane count */
+  overflow-x: hidden;   /* clips chips that continue into the next week */
+  overflow-y: auto;
+  scrollbar-width: none;       /*Firefox*/
+  -ms-overflow-style: none;    /*IE, Edge*/
+}
+
+.week-allday-row::-webkit-scrollbar {
+  display: none; /*Chromium*/
+}
+
+/* One column per day, one grid row per lane */
+.allday-days {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--allday-cols, 7), 1fr);
+  grid-auto-rows: var(--allday-lane-h, 16px);
+  row-gap: 2px;
+  padding: 2px 0;
+}
+
+.allday-chip {
+  height: var(--allday-lane-h, 16px);
+  line-height: var(--allday-lane-h, 16px);
+  min-width: 0;
+  margin: 0 1px;
+  padding: 0 5px;
+  border-radius: var(--radius-sm);
+  font-size: 0.68rem;
+  font-weight: 550;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: opacity 0.1s, filter 0.1s;
+  -webkit-touch-callout: none;
+}
+
+.allday-chip:hover {
+  opacity: 0.88;
+  filter: brightness(1.08);
+}
+
+/* Event started in an earlier week */
+.allday-chip.clip-start {
+  margin-left: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+/* Event continues into the next week */
+.allday-chip.clip-end {
+  margin-right: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
 .week-scroll {
   flex: 1;          /* grows to fill remaining height below the header */
   min-height:0;
@@ -1094,6 +1185,18 @@ select:focus {
   box-shadow: var(--shadow-lg);
   cursor: grabbing;
   touch-action: none;
+}
+
+/* restore rounded corners while dragging */
+.week-event.dragging.continues-from-prev {
+  border-top-left-radius: var(--radius-sm);
+  border-top-right-radius: var(--radius-sm);
+}
+
+.week-event.dragging.continues-to-next {
+  border-bottom-left-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-md);
+  border-bottom: 2px solid rgba(0,0,0,0.3) !important;
 }
 
 /* preview the "let go to cancel" outcome. */

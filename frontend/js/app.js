@@ -29,9 +29,12 @@ import {
 } from './storage.js';
 
 import {
+  addDays,
   addTime,
   combineDateAndTime,
   createEvent,
+  dayDiff,
+  endOfDay,
   eventsOnDay,
   getAdjWeekday,
   isToday,
@@ -39,6 +42,7 @@ import {
   parseRRule,
   refreshNotifs,
   serializeICS,
+  startOfDay,
   startOfWeek,
   toDateInputValue, toTimeInputValue
 } from './calendar.js';
@@ -71,6 +75,7 @@ let startHeight    = 0;           //|
 // dragging an existing (already-saved) event chip
 let chipDrag = null;
 let suppressNextClick = false; // swallow the ghost click after a non-moving long-press
+let suppressClickTimer = null;  // fail-safe so the flag can never outlive the gesture
 
 const LONG_PRESS_MS       = 500;  // touch: hold time before a drag starts
 const DRAG_MOVE_PX        = 6;    // mouse: movement before pointerdown counts as a drag
@@ -121,6 +126,7 @@ const elStartDate  = $('event-start-date');
 const elStartTime  = $('event-start-time');
 const elEndDate    = $('event-end-date');
 const elEndTime    = $('event-end-time');
+const elAllDay     = $('event-allday');
 const elCategory   = $('event-category');
 const elRepeat     = $('event-repeat');
 const elDesc       = $('event-description');
@@ -326,6 +332,9 @@ async function init() {
   elEndDate.addEventListener('change', () => {
     _modalDuration = null;
   });
+
+  // all-day
+  elAllDay.addEventListener('change', onAllDayToggle);
 
   // categories
   populateCategoryOptions();
@@ -638,6 +647,10 @@ function renderWeekView() {
     const hdr = document.createElement('div');
     hdr.className = 'week-day-header' + (isToday(day) ? ' today' : '');
     hdr.dataset.date = toDateInputValue(day);
+    hdr.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openNewEventModal(day, '', day, true);
+    });
 
     const name = document.createElement('span');
     name.className = 'wdh-name';
@@ -653,6 +666,10 @@ function renderWeekView() {
     headerRow.appendChild(hdr);
   }
   view.appendChild(headerRow);
+
+  // -- All-day band ---
+
+  view.appendChild(renderAllDayRow(monday, _weekDayNum));
 
   // -- scrollable body ---
 
@@ -711,7 +728,7 @@ function renderWeekView() {
       const ev = item.event;
       
       // create event chip
-      if (ev.allDay) continue; // all-day events stay in month-chip style
+      if (ev.allDay) continue; // all-day events in the band above
  
       let startH = 0;
       if (ev.start.getDate() === day.getDate()) {
@@ -850,6 +867,143 @@ function renderWeekView() {
   }
 }
 
+// --- All-day band (week view) ---
+
+const ALLDAY_LANE_H    = 16; // px, must match .allday-chip height in style.css
+const ALLDAY_MAX_LANES = 3;  // lanes shown before the band starts scrolling
+
+/**
+ * Builds the all-day band for one week.
+ * An event running past either edge of the week is clipped there and gets
+ * square corners on that side (.clip-start / .clip-end), so consecutive weeks
+ * read as one continuous chip.
+ *
+ * @param {Date} weekStart - first day of the week (Monday)
+ * @param {number} dayCount
+ * @returns {HTMLElement}
+ */
+function renderAllDayRow(weekStart, dayCount = 7) {
+  const row = document.createElement('div');
+  row.className = 'week-allday-row';
+
+  // Reuses .week-gutter-spacer so the columns line up with the time grid below
+  const spacer = document.createElement('div');
+  spacer.className = 'week-gutter-spacer';
+  row.appendChild(spacer);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'allday-days';
+  wrap.style.setProperty('--allday-cols', dayCount);
+  wrap.style.setProperty('--allday-lane-h', `${ALLDAY_LANE_H}px`);
+
+  const weekEnd = endOfDay(addDays(weekStart, dayCount - 1));
+
+  // -- Collect one segment per event ---
+  // Key on the same identity used for flip animations 
+
+  const seen = new Set();
+  const segments = [];
+
+  for (let i = 0; i < dayCount; i++) {
+    const day = addDays(weekStart, i);
+
+    for (const ev of eventsOnDay(events, day)) {
+      if (!ev.allDay) continue;
+
+      const key = ev.masterId ? `${ev.masterId}::${ev.originalDate}` : `id::${ev.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const evEnd = ev.end ?? ev.start;
+
+      segments.push({
+        ev,
+        key,
+        startIdx:  Math.max(0, dayDiff(weekStart, ev.start)),
+        endIdx:    Math.min(dayCount - 1, dayDiff(weekStart, evEnd)),
+        clipStart: startOfDay(ev.start) < weekStart,
+        clipEnd:   evEnd > weekEnd,
+        length:    dayDiff(ev.start, evEnd)
+      });
+    }
+  }
+
+  // -- Lane packing --------------------
+  // Longest first
+
+  segments.sort((a, b) => b.length - a.length || a.startIdx - b.startIdx);
+
+  const lanes = [];
+
+  for (const seg of segments) {
+    let lane = 0;
+
+    while (lanes[lane]?.some(o => o.startIdx <= seg.endIdx && o.endIdx >= seg.startIdx)) {
+      lane++;
+    }
+
+    (lanes[lane] ??= []).push(seg);
+    seg.lane = lane;
+  }
+
+  row.style.maxHeight =
+    `${Math.min(lanes.length || 1, ALLDAY_MAX_LANES) * (ALLDAY_LANE_H + 2) + 4}px`;
+
+  // -- Chips ---------------------------
+
+  for (const seg of segments) {
+    const ev = seg.ev;
+
+    const chip = document.createElement('div');
+    chip.className = 'allday-chip';
+
+    if (seg.clipStart) chip.classList.add('clip-start');
+    if (seg.clipEnd)   chip.classList.add('clip-end');
+
+    chip.style.gridColumn = `${seg.startIdx + 1} / span ${seg.endIdx - seg.startIdx + 1}`;
+    chip.style.gridRow    = seg.lane + 1;
+
+    // Same category styling as the time-grid chips
+    const chipStyle = getEventColorStyle(ev);
+    const endMs     = (ev.end ?? ev.start).getTime();
+
+    chip.dataset.flipKey   = seg.key;
+    chip.dataset.endTime   = endMs;
+    chip.dataset.dismissed = chipStyle.dismissed ? '1' : '0';
+    chip.dataset.baseColor = chipStyle.baseColor;
+
+    applyChipTiming(chip, endMs, chipStyle.dismissed, chipStyle.baseColor);
+
+    chip.style.color = chipStyle.textColor;
+    chip.textContent = ev.title; // title only
+    chip.title       = ev.title; // tooltip for ellipsised titles
+
+    chip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openEditEventModal(ev);
+    });
+
+    // No pointerdown yet (it does not work)
+    // TODO: make it work
+
+    wrap.appendChild(chip);
+  }
+
+  // -- Click empty space to add an all-day event --
+  wrap.addEventListener('click', (e) => {
+    if (e.target.closest('.allday-chip')) return;
+
+    const rect = wrap.getBoundingClientRect();
+    const idx  = Math.floor((e.clientX - rect.left) / (rect.width / dayCount));
+    const day  = addDays(weekStart, Math.max(0, Math.min(dayCount - 1, idx)));
+
+    openNewEventModal(day, '', day, true);
+  });
+
+  row.appendChild(wrap);
+  return row;
+}
+
 /* Determine week number of the current week*/
 function getWeekNumber(d) {
     d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -882,6 +1036,10 @@ function createDayCell(date, dayEvents = []) {
   const label       = document.createElement('span');
   label.className   = 'day-number';
   label.textContent = date.getDate();
+  label.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openNewEventModal(date, '', date, true);
+  });
   cell.appendChild(label);
 
   // Event chips
@@ -899,10 +1057,14 @@ function createEventChip(ev) {
   const chip             = document.createElement('div');
   chip.className         = 'event-chip';
   chip.textContent       = ev.title;
-  chip.style.background  = ev.color;
+
+  if (ev.allDay) chip.classList.add('allday');
+
+  const chipStyle        = getEventColorStyle(ev);
+  chip.style.background  = chipStyle.baseColor;
+  chip.style.color       = chipStyle.textColor;
 
   chip.addEventListener('click', (e) => {
-    // stop click event from propagating up the DOM tree
     e.stopPropagation();
     openEditEventModal(ev);
   });
@@ -1151,12 +1313,21 @@ function stopResize() {
 //                  than LONG_PRESS_PX before it fires cancels the timer
 //                  instead, so the page can still be scrolled normally
 
+/**
+ * Arms the guard in the chip's click listener. Self-expiring.
+ */
+function armClickSuppression() {
+  suppressNextClick = true;
+  clearTimeout(suppressClickTimer);
+  suppressClickTimer = setTimeout(() => { suppressNextClick = false; }, 400);
+}
+
 function onChipPointerDown(e, chip, ev) {
   if (e.target.closest('.week-event-resize')) return; // no resize handle on chips (yet)
   if (chipDrag) return;                                // a drag is already in progress
   if (e.pointerType === 'mouse' && e.button !== 0) return; // left button only
 
-  if (e.pointerType !== 'mouse') chip.style.touchAction = 'none';
+  // Scrolling during an active drag is blocked by blockTouchScroll()
 
   chipDrag = {
     chip, ev,
@@ -1172,12 +1343,13 @@ function onChipPointerDown(e, chip, ev) {
   if (e.pointerType !== 'mouse') {
     chipDrag.longPressTimer = setTimeout(() => {
       if (!chipDrag || chipDrag.chip !== chip) return;
-      beginChipDrag(e);
+      tryBeginChipDrag(e);
     }, LONG_PRESS_MS);
   }
 
   document.addEventListener('pointermove', onChipPointerMovePending);
   document.addEventListener('pointerup', onChipPointerUpPending);
+  document.addEventListener('pointercancel', onChipPointerCancelPending); // pointer is captured by another element
 }
 
 function onChipPointerMovePending(e) {
@@ -1187,7 +1359,7 @@ function onChipPointerMovePending(e) {
   const dist = Math.hypot(e.clientX - chipDrag.startX, e.clientY - chipDrag.startY);
 
   if (chipDrag.pointerType === 'mouse') {
-    if (dist > DRAG_MOVE_PX) beginChipDrag(e);
+    if (dist > DRAG_MOVE_PX) tryBeginChipDrag(e);
   } else if (dist > LONG_PRESS_PX) { // scrolling
     cancelPendingChipDrag();
   }
@@ -1199,23 +1371,75 @@ function onChipPointerUpPending(e) {
   cancelPendingChipDrag(); // click if released before a drag started
 }
 
+function onChipPointerCancelPending(e) {
+  if (!chipDrag || chipDrag.active) return;
+  if (e.pointerId !== chipDrag.pointerId) return;
+  cancelPendingChipDrag();
+}
+
 function cancelPendingChipDrag() {
   if (!chipDrag) return;
   clearTimeout(chipDrag.longPressTimer);
-  chipDrag.chip.style.touchAction = '';
-  document.removeEventListener('pointermove', onChipPointerMovePending);
-  document.removeEventListener('pointerup', onChipPointerUpPending);
+  removePendingChipListeners();
   chipDrag = null;
 }
 
-function beginChipDrag(e) {
+function removePendingChipListeners() {
   document.removeEventListener('pointermove', onChipPointerMovePending);
   document.removeEventListener('pointerup', onChipPointerUpPending);
+  document.removeEventListener('pointercancel', onChipPointerCancelPending);
+}
+
+function removeActiveChipListeners() {
+  document.removeEventListener('pointermove', onChipDragMove);
+  document.removeEventListener('pointerup', onChipDragEnd);
+  document.removeEventListener('pointercancel', onChipDragEnd);
+  document.removeEventListener('touchmove', blockTouchScroll);
+}
+
+function blockTouchScroll(e) {
+  if (e.cancelable) e.preventDefault();
+}
+
+/**
+ * make sure a throw can never leave chipDrag behind.
+ */
+function tryBeginChipDrag(e) {
+  try {
+    beginChipDrag(e);
+  } catch (err) {
+    console.error('Could not start dragging this event:', err);
+    abortChipDrag();
+  }
+}
+
+function abortChipDrag() {
+  removePendingChipListeners();
+  removeActiveChipListeners();
+
+  document.body.style.overflow = '';
+  elDragDropZone.classList.remove('open');
+  elDragCancelZone.classList.remove('armed');
+
+  if (chipDrag) {
+    clearTimeout(chipDrag.longPressTimer);
+    chipDrag.chip.classList.remove('dragging', 'will-cancel', 'returning');
+    chipDrag = null;
+  }
+
+  cleanupDimClasses();
+  renderCalendar(); // discard whatever half-applied inline geometry is left
+}
+
+function beginChipDrag(e) {
+  removePendingChipListeners();
   clearTimeout(chipDrag.longPressTimer);
 
-  const { chip } = chipDrag;
+  const { chip, ev } = chipDrag;
 
   closeQuickAdd(); // a draft and a chip-drag shouldn't be open at once
+
+  const evEnd = ev.end ?? new Date(ev.start.getTime() + 1.5 * ONE_HOUR_MS);
 
   chipDrag.active         = true;
   chipDrag.origTop        = chip.style.top;
@@ -1225,20 +1449,25 @@ function beginChipDrag(e) {
   chipDrag.origCol        = chip.parentNode;
   chipDrag.startTop       = chip.offsetTop;
   chipDrag.startScrollTop = weekScrollEl.scrollTop;
-  chipDrag.newStart       = chipDrag.ev.start;
-  chipDrag.newEnd         = chipDrag.ev.end;
+  chipDrag.origStart      = ev.start;
+  chipDrag.origEnd        = evEnd;
+  chipDrag.durationMs     = evEnd - ev.start;
+  chipDrag.newStart       = ev.start;
+  chipDrag.newEnd         = evEnd;
 
-  chip.setPointerCapture(e.pointerId);
+  try { chip.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
 
   // Widen the chip to the full column width for the duration of the drag.
   chip.style.left  = '0px';
   chip.style.right = '0px';
   chip.style.width = 'auto';
 
-  const end = chip.ev.end ?? chip.ev.start + 1.5;
-  const duration = end - chip.ev.start;
-  const chipHeight = duration * HOUR_H;
-  chip.style.height = chipHeight;
+  // An event that runs past midnight was rendered clipped at the day boundary;
+  // show its real length while it is being dragged. (Hours, not milliseconds -
+  // and style.height needs a unit or the assignment is silently dropped.)
+  const durationH = chipDrag.durationMs / ONE_HOUR_MS;
+  const clampedH  = Math.min(Math.max(durationH, 0.25), 24);
+  chip.style.height = `${clampedH * HOUR_H - 1}px`;
 
   chip.classList.add('dragging');
 
@@ -1250,6 +1479,7 @@ function beginChipDrag(e) {
   document.addEventListener('pointermove', onChipDragMove);
   document.addEventListener('pointerup', onChipDragEnd);
   document.addEventListener('pointercancel', onChipDragEnd);
+  document.addEventListener('touchmove', blockTouchScroll, { passive: false });
 }
 
 function onChipDragMove(e) {
@@ -1281,17 +1511,25 @@ function onChipDragMove(e) {
   chip.style.top = `${newTop}px`;
 
   // Recompute the proposed new start/end from the current column + top.
-  const monday = startOfWeek(currentDate);
-  const colIndex = [...chipDrag.col.parentNode.children].indexOf(chipDrag.col);
-  const newDate = new Date(monday);
-  newDate.setDate(monday.getDate() + colIndex);
+  // Every column carries its own date, so read it instead of re-deriving it
+  // from startOfWeek() + child index (which breaks as soon as the first
+  // weekday is configurable, or in day view).
+  const colDate = chipDrag.col.dataset.date;
+  let newDate;
+  if (colDate) {
+    newDate = new Date(`${colDate}T00:00:00`);
+  } else {
+    const monday   = startOfWeek(currentDate);
+    const colIndex = [...chipDrag.col.parentNode.children].indexOf(chipDrag.col);
+    newDate = new Date(monday);
+    newDate.setDate(monday.getDate() + colIndex);
+  }
 
   const startHours = newTop / HOUR_H;
   newDate.setHours(Math.floor(startHours), Math.round((startHours % 1) * 60), 0, 0);
 
-  const duration = chipDrag.ev.end - chipDrag.ev.start;
   chipDrag.newStart = newDate;
-  chipDrag.newEnd   = new Date(newDate.getTime() + duration);
+  chipDrag.newEnd   = new Date(newDate.getTime() + chipDrag.durationMs);
 
 
   const timeEl = chip.querySelector('.week-event-time');
@@ -1314,13 +1552,9 @@ function onChipDragEnd(e) {
   if (e.pointerId !== chipDrag.pointerId) return;
 
   document.body.style.overflow = '';
-  document.removeEventListener('pointermove', onChipDragMove);
-  document.removeEventListener('pointerup', onChipDragEnd);
-  document.removeEventListener('pointercancel', onChipDragEnd);
+  removeActiveChipListeners();
 
-  const { chip, ev, newStart, newEnd } = chipDrag;
-
-  chip.style.touchAction = '';
+  const { chip, ev, newStart, newEnd, origStart, origEnd } = chipDrag;
 
   try { chip.releasePointerCapture(e.pointerId); } catch { /* already released */ }
 
@@ -1328,6 +1562,11 @@ function onChipDragEnd(e) {
 
   elDragDropZone.classList.remove('open');
   elDragCancelZone.classList.remove('armed');
+
+  // Every drag ends in a native click on the chip, cancelled or not, so the
+  // guard has to be armed on both paths - otherwise cancelling a drag opens
+  // the edit modal for the event you just decided not to move.
+  armClickSuppression();
 
   // Un-dim everyone else, radiating outward from wherever this was let go.
   const waitMs = rippleDim(e.clientX, e.clientY, false, chip);
@@ -1341,9 +1580,9 @@ function onChipDragEnd(e) {
 
   chip.classList.remove('dragging', 'will-cancel');
   chipDrag = null;
-  suppressNextClick = true; // guards against the ghost click, see chip's click listener
 
-  const unchanged = newStart.getTime() === ev.start.getTime() && newEnd.getTime() === ev.end.getTime();
+  const unchanged = newStart.getTime() === origStart.getTime()
+                 && newEnd.getTime()   === origEnd.getTime();
 
   // Finish un-dim ripple before rerendering
   setTimeout(() => {
@@ -1388,11 +1627,23 @@ function returnChipToOrigin(drag) {
     chip.style.height = origHeight;
   });
 
-  chip.addEventListener('transitionend', function done(ev) {
-    if (ev.propertyName !== 'top') return; // one of four properties animate together; fire once
+  let cleanedUp = false;
+  const finish = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    clearTimeout(fallback);
     chip.removeEventListener('transitionend', done);
     chip.classList.remove('returning', 'dragging', 'will-cancel');
-  });
+  };
+
+  function done(ev) {
+    if (ev.propertyName !== 'top') return; // four properties animate together; fire once
+    finish();
+  }
+
+  const fallback = setTimeout(finish, 400); // > the 260ms .returning transition
+
+  chip.addEventListener('transitionend', done);
 }
 
 /**
@@ -1554,7 +1805,9 @@ function handleQuickSave() {
     end: draftEvent.end,
     description: '',
     color: '#A80808',
-    rrule: null
+    rrule: null,
+    allDay: false // quick add is driven by the time grid
+                  // TODO: make it depend on whether the user clicked the all-day band or a timed slot
   });
 
   events.push(newEvent);
@@ -1569,7 +1822,10 @@ function handleQuickSave() {
 // MODAL
 // ============================================================
 
-function openNewEventModal(date, title='', end=null) {
+const DEFAULT_TIMED_START = '09:00';
+const DEFAULT_TIMED_END   = '10:30';
+
+function openNewEventModal(date, title='', end=null, openAllDay=false) {
   editingId = null;
   elModalTitle.textContent = 'New Event';
   elDeleteBtn.style.display = 'none';
@@ -1595,8 +1851,17 @@ function openNewEventModal(date, title='', end=null) {
     .querySelectorAll("#repeat-weekdays input")
     .forEach(cb => cb.checked = false);
 
+  elAllDay.checked = !!openAllDay; // true if clicked on all-day band
+
+  if (openAllDay) {
+    // The dimmed time fields preview what unticking would give back
+    elStartTime.value = DEFAULT_TIMED_START;
+    elEndTime.value   = DEFAULT_TIMED_END;
+  }
+
   updateRepeatUI();
   updateCategoryUI();
+  updateAllDayUI();
 
   openModal();
 
@@ -1639,6 +1904,36 @@ function updateCategoryUI() {
   } else {
     elColor.disabled = false;
   }
+}
+
+// -- all-day ------------------------------------------------
+
+/**
+ * Called when the user ticks/unticks "All day".
+ */
+function onAllDayToggle() {
+  if (elAllDay.checked) {
+    if (!elStartTime.value) elStartTime.value = DEFAULT_TIMED_START;
+    if (!elEndTime.value)   elEndTime.value   = DEFAULT_TIMED_END;
+  }
+
+  updateAllDayUI();
+  rememberDuration();
+}
+
+/**
+ * Reflects the all-day state in the time inputs: disabled and dimmed while
+ * all-day is on, editable otherwise. Values are left untouched either way.
+ */
+function updateAllDayUI() {
+  const on = elAllDay.checked;
+
+  elStartTime.disabled = on;
+  elEndTime.disabled   = on;
+
+  document
+    .querySelectorAll('.time-field')
+    .forEach(el => el.classList.toggle('is-disabled', on));
 }
 
 function updateRepeatUI() {
@@ -1693,7 +1988,16 @@ function openEditEventModal(ev) {
   elDesc.value      = ev.description ?? '';
   elColor.value     = ev.color ?? DEFAULT_EVENT_COLOR;
 
+  elAllDay.checked  = !!ev.allDay;
+
+  // remembered times or defaults for all-day events
+  if (ev.allDay) {
+    elStartTime.value = ev.timedStart ?? DEFAULT_TIMED_START;
+    elEndTime.value   = ev.timedEnd   ?? DEFAULT_TIMED_END;
+  }
+
   updateCategoryUI(); //re-locks the colour field if category controls it
+  updateAllDayUI();
 
   if (ev.rrule) {
     const recur = parseRRule(ev.rrule);
@@ -1785,8 +2089,21 @@ function handleModalSave() {
     return;
   }
 
-  const start = combineDateAndTime(elStartDate.value, elStartTime.value);
-  const end   = combineDateAndTime(elEndDate.value, elEndTime.value);
+  const allDay = elAllDay.checked;
+
+  // All-day events span whole days internally: midnight to 23:59:59.999 of the
+  // last day. serializeICS() converts that to the exclusive DTEND the spec
+  // wants. 
+  const start = allDay
+    ? startOfDay(new Date(elStartDate.value + 'T00:00:00'))
+    : combineDateAndTime(elStartDate.value, elStartTime.value);
+
+  const end = allDay
+    ? endOfDay(new Date(elEndDate.value + 'T00:00:00'))
+    : combineDateAndTime(elEndDate.value, elEndTime.value);
+
+  const timedStart = allDay ? (elStartTime.value || DEFAULT_TIMED_START) : null;
+  const timedEnd   = allDay ? (elEndTime.value   || DEFAULT_TIMED_END)   : null;
 
   if (end < start) {
     if (elStartDate.value === elEndDate.value) {
@@ -1838,7 +2155,7 @@ function handleModalSave() {
   }
 
   if (editingId && editingOriginalDate){
-    _pendingSave = { title, start, end, description: elDesc.value, color: elColor.value, rrule, categories };
+    _pendingSave = { title, start, end, description: elDesc.value, color: elColor.value, rrule, categories, allDay, timedStart, timedEnd };
     elScopeDesc.textContent = 
       'This is a recurring event. Do you want to apply the changes to just this occurrence, or all occurrences?';
     $('scope-this').textContent = 'This event';
@@ -1848,7 +2165,7 @@ function handleModalSave() {
   }
 
   // Non-recurring
-  _commitRecurrenceSaveNow({title, start, end, description: elDesc.value, color: elColor.value, rrule, categories}, 'all');
+  _commitRecurrenceSaveNow({title, start, end, description: elDesc.value, color: elColor.value, rrule, categories, allDay, timedStart, timedEnd}, 'all');
 }
 
 async function handleModalDelete() {
@@ -1956,7 +2273,7 @@ async function commitRecurrenceSave(scope) {
  * @param {'this'|'all'} scope
  */
 function _commitRecurrenceSaveNow(fields, scope) {
-  const { title, start, end, description, color, rrule, categories } = fields;
+  const { title, start, end, description, color, rrule, categories, allDay, timedStart, timedEnd } = fields;
  
   if (editingId) {
     const idx = events.findIndex(ev => ev.id === editingId);
@@ -1972,6 +2289,7 @@ function _commitRecurrenceSaveNow(fields, scope) {
         if (description !== master.description) exception.description = description;
         if (color       !== master.color)       exception.color       = color;
         if (categories  !==  (master.categories ?? null)) exception.categories = categories;
+        if (allDay      !== !!master.allDay)    exception.allDay      = allDay;
  
         // Compare times by value, not reference
         const masterOccStart = (() => {
@@ -1995,12 +2313,12 @@ function _commitRecurrenceSaveNow(fields, scope) {
       } else {
         // Update the master. 
         // Existing per-occurrence exceptions are preserved.
-        events[idx] = { ...events[idx], title, start, end, description, color, categories, rrule};
+        events[idx] = { ...events[idx], title, start, end, description, color, categories, rrule, allDay, timedStart, timedEnd};
       }
     }
   } else {
     // Brand new event
-    events.push(createEvent({ title, start, end, description, color, categories, rrule }));
+    events.push(createEvent({ title, start, end, description, color, categories, rrule, allDay, timedStart, timedEnd }));
   }
  
   closeModal();
@@ -2085,7 +2403,8 @@ function _updateSettingsPathDisplay(path) {
 
 // keep event duration when changing start time in the modal --
 
-let _modalDuration = null;
+let _modalDuration  = null;
+let _modalStartDate = null; // YYYY-MM-DD, used for whole-day shifts
 
 function rememberDuration() {
   const start = combineDateAndTime(elStartDate.value, elStartTime.value);
@@ -2094,9 +2413,26 @@ function rememberDuration() {
   if (start && end) {
     _modalDuration = end - start;
   }
+
+  _modalStartDate = elStartDate.value;
 }
 
 function shiftEndWithStart() {
+  // All-day events must be shifted in whole days. Account for DST change.
+  if (elAllDay.checked) {
+    if (!elStartDate.value || !elEndDate.value) return;
+
+    const oldStart = new Date(_modalStartDate + 'T00:00:00');
+    const newStart = new Date(elStartDate.value + 'T00:00:00');
+    const oldEnd   = new Date(elEndDate.value + 'T00:00:00');
+
+    const span = dayDiff(oldStart, oldEnd);
+    if (span >= 0) elEndDate.value = toDateInputValue(addDays(newStart, span));
+
+    _modalStartDate = elStartDate.value;
+    return;
+  }
+
   if (!_modalDuration) return;
 
   const start = combineDateAndTime(elStartDate.value, elStartTime.value);
@@ -2504,7 +2840,7 @@ function refreshTimeSensitiveUI() {
     .querySelectorAll('.week-day-col[data-date], .week-day-header[data-date]')
     .forEach(el => el.classList.toggle('today', el.dataset.date === todayKey));
 
-  document.querySelectorAll('.week-event[data-end-time]').forEach(chip => {
+  document.querySelectorAll('.week-event[data-end-time], .allday-chip[data-end-time]').forEach(chip => {
     applyChipTiming(
       chip,
       Number(chip.dataset.endTime),
