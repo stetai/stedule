@@ -1401,13 +1401,21 @@ function returnChipToOrigin(drag) {
 function flipRerender(applyChanges) {
   const before = new Map();
   document.querySelectorAll('.week-event[data-flip-key]').forEach(chip => {
-    before.set(chip.dataset.flipKey, chip.getBoundingClientRect());
+    //before.set(chip.dataset.flipKey, chip.getBoundingClientRect());
+    if (!before.has(key)) before.set(key, []);
+    before.get(key).push(chip.getBoundingClientRect());
   });
  
   applyChanges();
+
+  const segmentSeen = new Map();
  
   document.querySelectorAll('.week-event[data-flip-key]').forEach(chip => {
-    const oldRect = before.get(chip.dataset.flipKey);
+    const key = chip.dataset.flipKey;
+    const segment = segmentSeen.get(key) ?? 0;
+    segmentSeen.set(key, segment + 1);
+
+    const oldRect = before.get(key)?.[segment];
     if (!oldRect) return; // a genuinely new chip - nothing to animate from
  
     const newRect = chip.getBoundingClientRect();
