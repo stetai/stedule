@@ -10,6 +10,7 @@ For example, you could use the OSS [Syncthing](https://syncthing.net/).
 
 ## Changelog
 
+- 260827- **v0.6.0-alpha**: Added all-day functionality; fixed major drag-and-drop bugs
 - 260826, **v0.5.7-alpha**: Added drag-and-drop to web and Android
 - 260804, **v0.5.6-alpha**: Added category 'career'; Cleaned up past event look
 - 260721, **v0.5.5-alpha**: Event opacity, now indicator and today highlighting now update real-time; fixed status message overflowing; decreased min event size to 15 min; adjusted draft resizing hitbox
