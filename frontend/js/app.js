@@ -71,6 +71,7 @@ let startHeight    = 0;           //|
 // dragging an existing (already-saved) event chip
 let chipDrag = null;
 let suppressNextClick = false; // swallow the ghost click after a non-moving long-press
+let suppressClickTimer = null;  // fail-safe so the flag can never outlive the gesture
 
 const LONG_PRESS_MS       = 500;  // touch: hold time before a drag starts
 const DRAG_MOVE_PX        = 6;    // mouse: movement before pointerdown counts as a drag
@@ -1151,12 +1152,21 @@ function stopResize() {
 //                  than LONG_PRESS_PX before it fires cancels the timer
 //                  instead, so the page can still be scrolled normally
 
+/**
+ * Arms the guard in the chip's click listener. Self-expiring.
+ */
+function armClickSuppression() {
+  suppressNextClick = true;
+  clearTimeout(suppressClickTimer);
+  suppressClickTimer = setTimeout(() => { suppressNextClick = false; }, 400);
+}
+
 function onChipPointerDown(e, chip, ev) {
   if (e.target.closest('.week-event-resize')) return; // no resize handle on chips (yet)
   if (chipDrag) return;                                // a drag is already in progress
   if (e.pointerType === 'mouse' && e.button !== 0) return; // left button only
 
-  if (e.pointerType !== 'mouse') chip.style.touchAction = 'none';
+  // Scrolling during an active drag is blocked by blockTouchScroll()
 
   chipDrag = {
     chip, ev,
@@ -1172,12 +1182,13 @@ function onChipPointerDown(e, chip, ev) {
   if (e.pointerType !== 'mouse') {
     chipDrag.longPressTimer = setTimeout(() => {
       if (!chipDrag || chipDrag.chip !== chip) return;
-      beginChipDrag(e);
+      tryBeginChipDrag(e);
     }, LONG_PRESS_MS);
   }
 
   document.addEventListener('pointermove', onChipPointerMovePending);
   document.addEventListener('pointerup', onChipPointerUpPending);
+  document.addEventListener('pointercancel', onChipPointerCancelPending); // pointer is captured by another element
 }
 
 function onChipPointerMovePending(e) {
@@ -1187,7 +1198,7 @@ function onChipPointerMovePending(e) {
   const dist = Math.hypot(e.clientX - chipDrag.startX, e.clientY - chipDrag.startY);
 
   if (chipDrag.pointerType === 'mouse') {
-    if (dist > DRAG_MOVE_PX) beginChipDrag(e);
+    if (dist > DRAG_MOVE_PX) tryBeginChipDrag(e);
   } else if (dist > LONG_PRESS_PX) { // scrolling
     cancelPendingChipDrag();
   }
@@ -1199,23 +1210,75 @@ function onChipPointerUpPending(e) {
   cancelPendingChipDrag(); // click if released before a drag started
 }
 
+function onChipPointerCancelPending(e) {
+  if (!chipDrag || chipDrag.active) return;
+  if (e.pointerId !== chipDrag.pointerId) return;
+  cancelPendingChipDrag();
+}
+
 function cancelPendingChipDrag() {
   if (!chipDrag) return;
   clearTimeout(chipDrag.longPressTimer);
-  chipDrag.chip.style.touchAction = '';
-  document.removeEventListener('pointermove', onChipPointerMovePending);
-  document.removeEventListener('pointerup', onChipPointerUpPending);
+  removePendingChipListeners();
   chipDrag = null;
 }
 
-function beginChipDrag(e) {
+function removePendingChipListeners() {
   document.removeEventListener('pointermove', onChipPointerMovePending);
   document.removeEventListener('pointerup', onChipPointerUpPending);
+  document.removeEventListener('pointercancel', onChipPointerCancelPending);
+}
+
+function removeActiveChipListeners() {
+  document.removeEventListener('pointermove', onChipDragMove);
+  document.removeEventListener('pointerup', onChipDragEnd);
+  document.removeEventListener('pointercancel', onChipDragEnd);
+  document.removeEventListener('touchmove', blockTouchScroll);
+}
+
+function blockTouchScroll(e) {
+  if (e.cancelable) e.preventDefault();
+}
+
+/**
+ * make sure a throw can never leave chipDrag behind.
+ */
+function tryBeginChipDrag(e) {
+  try {
+    beginChipDrag(e);
+  } catch (err) {
+    console.error('Could not start dragging this event:', err);
+    abortChipDrag();
+  }
+}
+
+function abortChipDrag() {
+  removePendingChipListeners();
+  removeActiveChipListeners();
+
+  document.body.style.overflow = '';
+  elDragDropZone.classList.remove('open');
+  elDragCancelZone.classList.remove('armed');
+
+  if (chipDrag) {
+    clearTimeout(chipDrag.longPressTimer);
+    chipDrag.chip.classList.remove('dragging', 'will-cancel', 'returning');
+    chipDrag = null;
+  }
+
+  cleanupDimClasses();
+  renderCalendar(); // discard whatever half-applied inline geometry is left
+}
+
+function beginChipDrag(e) {
+  removePendingChipListeners();
   clearTimeout(chipDrag.longPressTimer);
 
-  const { chip } = chipDrag;
+  const { chip, ev } = chipDrag;
 
   closeQuickAdd(); // a draft and a chip-drag shouldn't be open at once
+
+  const evEnd = ev.end ?? new Date(ev.start.getTime() + 1.5 * ONE_HOUR_MS);
 
   chipDrag.active         = true;
   chipDrag.origTop        = chip.style.top;
@@ -1225,20 +1288,25 @@ function beginChipDrag(e) {
   chipDrag.origCol        = chip.parentNode;
   chipDrag.startTop       = chip.offsetTop;
   chipDrag.startScrollTop = weekScrollEl.scrollTop;
-  chipDrag.newStart       = chipDrag.ev.start;
-  chipDrag.newEnd         = chipDrag.ev.end;
+  chipDrag.origStart      = ev.start;
+  chipDrag.origEnd        = evEnd;
+  chipDrag.durationMs     = evEnd - ev.start;
+  chipDrag.newStart       = ev.start;
+  chipDrag.newEnd         = evEnd;
 
-  chip.setPointerCapture(e.pointerId);
+  try { chip.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
 
   // Widen the chip to the full column width for the duration of the drag.
   chip.style.left  = '0px';
   chip.style.right = '0px';
   chip.style.width = 'auto';
 
-  const end = chip.ev.end ?? chip.ev.start + 1.5;
-  const duration = end - chip.ev.start;
-  const chipHeight = duration * HOUR_H;
-  chip.style.height = chipHeight;
+  // An event that runs past midnight was rendered clipped at the day boundary;
+  // show its real length while it is being dragged. (Hours, not milliseconds -
+  // and style.height needs a unit or the assignment is silently dropped.)
+  const durationH = chipDrag.durationMs / ONE_HOUR_MS;
+  const clampedH  = Math.min(Math.max(durationH, 0.25), 24);
+  chip.style.height = `${clampedH * HOUR_H - 1}px`;
 
   chip.classList.add('dragging');
 
@@ -1250,6 +1318,7 @@ function beginChipDrag(e) {
   document.addEventListener('pointermove', onChipDragMove);
   document.addEventListener('pointerup', onChipDragEnd);
   document.addEventListener('pointercancel', onChipDragEnd);
+  document.addEventListener('touchmove', blockTouchScroll, { passive: false });
 }
 
 function onChipDragMove(e) {
@@ -1281,17 +1350,25 @@ function onChipDragMove(e) {
   chip.style.top = `${newTop}px`;
 
   // Recompute the proposed new start/end from the current column + top.
-  const monday = startOfWeek(currentDate);
-  const colIndex = [...chipDrag.col.parentNode.children].indexOf(chipDrag.col);
-  const newDate = new Date(monday);
-  newDate.setDate(monday.getDate() + colIndex);
+  // Every column carries its own date, so read it instead of re-deriving it
+  // from startOfWeek() + child index (which breaks as soon as the first
+  // weekday is configurable, or in day view).
+  const colDate = chipDrag.col.dataset.date;
+  let newDate;
+  if (colDate) {
+    newDate = new Date(`${colDate}T00:00:00`);
+  } else {
+    const monday   = startOfWeek(currentDate);
+    const colIndex = [...chipDrag.col.parentNode.children].indexOf(chipDrag.col);
+    newDate = new Date(monday);
+    newDate.setDate(monday.getDate() + colIndex);
+  }
 
   const startHours = newTop / HOUR_H;
   newDate.setHours(Math.floor(startHours), Math.round((startHours % 1) * 60), 0, 0);
 
-  const duration = chipDrag.ev.end - chipDrag.ev.start;
   chipDrag.newStart = newDate;
-  chipDrag.newEnd   = new Date(newDate.getTime() + duration);
+  chipDrag.newEnd   = new Date(newDate.getTime() + chipDrag.durationMs);
 
 
   const timeEl = chip.querySelector('.week-event-time');
@@ -1314,13 +1391,9 @@ function onChipDragEnd(e) {
   if (e.pointerId !== chipDrag.pointerId) return;
 
   document.body.style.overflow = '';
-  document.removeEventListener('pointermove', onChipDragMove);
-  document.removeEventListener('pointerup', onChipDragEnd);
-  document.removeEventListener('pointercancel', onChipDragEnd);
+  removeActiveChipListeners();
 
-  const { chip, ev, newStart, newEnd } = chipDrag;
-
-  chip.style.touchAction = '';
+  const { chip, ev, newStart, newEnd, origStart, origEnd } = chipDrag;
 
   try { chip.releasePointerCapture(e.pointerId); } catch { /* already released */ }
 
@@ -1328,6 +1401,11 @@ function onChipDragEnd(e) {
 
   elDragDropZone.classList.remove('open');
   elDragCancelZone.classList.remove('armed');
+
+  // Every drag ends in a native click on the chip, cancelled or not, so the
+  // guard has to be armed on both paths - otherwise cancelling a drag opens
+  // the edit modal for the event you just decided not to move.
+  armClickSuppression();
 
   // Un-dim everyone else, radiating outward from wherever this was let go.
   const waitMs = rippleDim(e.clientX, e.clientY, false, chip);
@@ -1341,9 +1419,9 @@ function onChipDragEnd(e) {
 
   chip.classList.remove('dragging', 'will-cancel');
   chipDrag = null;
-  suppressNextClick = true; // guards against the ghost click, see chip's click listener
 
-  const unchanged = newStart.getTime() === ev.start.getTime() && newEnd.getTime() === ev.end.getTime();
+  const unchanged = newStart.getTime() === origStart.getTime()
+                 && newEnd.getTime()   === origEnd.getTime();
 
   // Finish un-dim ripple before rerendering
   setTimeout(() => {
@@ -1388,11 +1466,23 @@ function returnChipToOrigin(drag) {
     chip.style.height = origHeight;
   });
 
-  chip.addEventListener('transitionend', function done(ev) {
-    if (ev.propertyName !== 'top') return; // one of four properties animate together; fire once
+  let cleanedUp = false;
+  const finish = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    clearTimeout(fallback);
     chip.removeEventListener('transitionend', done);
     chip.classList.remove('returning', 'dragging', 'will-cancel');
-  });
+  };
+
+  function done(ev) {
+    if (ev.propertyName !== 'top') return; // four properties animate together; fire once
+    finish();
+  }
+
+  const fallback = setTimeout(finish, 400); // > the 260ms .returning transition
+
+  chip.addEventListener('transitionend', done);
 }
 
 /**
