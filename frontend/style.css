@@ -1096,6 +1096,18 @@ select:focus {
   touch-action: none;
 }
 
+/* restore rounded corners while dragging */
+.week-event.dragging.continues-from-prev {
+  border-top-left-radius: var(--radius-sm);
+  border-top-right-radius: var(--radius-sm);
+}
+
+.week-event.dragging.continues-to-next {
+  border-bottom-left-radius: var(--radius-md);
+  border-bottom-right-radius: var(--radius-md);
+  border-bottom: 2px solid rgba(0,0,0,0.3) !important;
+}
+
 /* preview the "let go to cancel" outcome. */
 .week-event.will-cancel {
   filter: grayscale(0.7) brightness(0.85) !important;
