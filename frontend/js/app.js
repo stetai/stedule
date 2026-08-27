@@ -1456,6 +1456,12 @@ function beginChipDrag(e) {
   chipDrag.newStart       = ev.start;
   chipDrag.newEnd         = evEnd;
 
+  // which day of the span
+  const grabbedDate = chipDrag.col.dataset.date
+    ? new Date(`${chipDrag.col.dataset.date}T00:00:00`)
+    : new Date(ev.start);
+  chipDrag.grabDayOffset = dayDiff(startOfDay(ev.start), startOfDay(grabbedDate));
+
   try { chip.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
 
   // Widen the chip to the full column width for the duration of the drag.
@@ -1500,21 +1506,6 @@ function onChipDragMove(e) {
     newCol.appendChild(chip);
   }
 
-  const scrollDelta = weekScrollEl.scrollTop - chipDrag.startScrollTop;
-  const dy = e.clientY - chipDrag.startY + scrollDelta;
-
-  const snap = HOUR_H / 4; // 15 minutes
-  let newTop = Math.round((chipDrag.startTop + dy) / snap) * snap;
-
-  const maxTop = 23.75 * HOUR_H;
-  newTop = Math.max(0, Math.min(newTop, maxTop));
-
-  chip.style.top = `${newTop}px`;
-
-  // Recompute the proposed new start/end from the current column + top.
-  // Every column carries its own date, so read it instead of re-deriving it
-  // from startOfWeek() + child index (which breaks as soon as the first
-  // weekday is configurable, or in day view).
   const colDate = chipDrag.col.dataset.date;
   let newDate;
   if (colDate) {
@@ -1526,8 +1517,27 @@ function onChipDragMove(e) {
     newDate.setDate(monday.getDate() + colIndex);
   }
 
-  const startHours = newTop / HOUR_H;
-  newDate.setHours(Math.floor(startHours), Math.round((startHours % 1) * 60), 0, 0);
+  // multi-day event's first day tracks pointer
+  newDate.setDate(newDate.getDate() - chipDrag.grabDayOffset);
+
+  if (chipDrag.grabDayOffset === 0) {
+    // Grabbed the real start segment: vertical position is a genuine time.
+    const scrollDelta = weekScrollEl.scrollTop - chipDrag.startScrollTop;
+    const dy = e.clientY - chipDrag.startY + scrollDelta;
+    const snap = HOUR_H / 4; // 15 minutes
+    let newTop = Math.round((chipDrag.startTop + dy) / snap) * snap;
+    const maxTop = 23.75 * HOUR_H;
+    newTop = Math.max(0, Math.min(newTop, maxTop));
+
+    chip.style.top = `${newTop}px`;
+
+    const startHours = newTop / HOUR_H;
+    newDate.setHours(Math.floor(startHours), Math.round((startHours % 1) * 60), 0, 0);
+  } else {
+    // Grabbed a continuation segment: no real time to derive from pixels.
+    chip.style.top = '0px';
+    newDate.setHours(chipDrag.origStart.getHours(), chipDrag.origStart.getMinutes(), 0, 0);
+  }
 
   chipDrag.newStart = newDate;
   chipDrag.newEnd   = new Date(newDate.getTime() + chipDrag.durationMs);
