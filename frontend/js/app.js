@@ -1652,6 +1652,7 @@ function returnChipToOrigin(drag) {
 function flipRerender(applyChanges) {
   const before = new Map();
   document.querySelectorAll('.week-event[data-flip-key]').forEach(chip => {
+    const key = chip.dataset.flipKey;
     if (!before.has(key)) before.set(key, []);
     before.get(key).push(chip.getBoundingClientRect());
   });
