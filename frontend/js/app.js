@@ -616,11 +616,11 @@ const OVERLAY_INSET_PCT  = 10;          // % of the host's width left visible be
 const ONE_HOUR_MS        = 60 * 60 * 1000;
 
 
-function renderWeekView() {
+function buildWeekPane(baseDate) {
   elGrid.classList.remove('view-day');
   elGrid.classList.add('view-week');
 
-  const monday = startOfWeek(currentDate);
+  const monday = startOfWeek(baseDate);
 
   // -- Outer wrapper ---
   // .week-view is a flex colum that fills the grid container
