@@ -673,14 +673,15 @@ function buildWeekPane(baseDate) {
 
   // -- All-day band ---
 
-  view.appendChild(renderAllDayRow(monday, _weekDayNum));
+  const alldayRow = renderAllDayRow(monday, _weekDayNum);
+  // stash the true target height of the all-day row
+  alldayRow.dataset.naturalMaxHeight = alldayRow.style.maxHeight;
+  view.appendChild(alldayRow);
 
   // -- scrollable body ---
 
   const scroll = document.createElement('div');
   scroll.className = 'week-scroll';
-
-  weekScrollEl = scroll;
 
   const body = document.createElement('div');
   body.className = 'week-body';
@@ -847,6 +848,13 @@ function buildWeekPane(baseDate) {
   body.appendChild(daysWrap);
   scroll.appendChild(body);
   view.appendChild(scroll);
+
+  return { el: view, scrollEl: scroll, alldayRow };
+
+  /*
+  body.appendChild(daysWrap);
+  scroll.appendChild(body);
+  view.appendChild(scroll);
   elGrid.appendChild(view);
 
   //render titles if chip is wide enough
@@ -869,6 +877,7 @@ function buildWeekPane(baseDate) {
     scroll.scrollTop = _savedScrollTop;
     _savedScrollTop = null;
   }
+  */
 }
 
 // --- All-day band (week view) ---
