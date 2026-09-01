@@ -555,7 +555,7 @@ function renderCalendar() {
     renderMonthView();
   } else if (currentView === 'week') {
     elPeriod.textContent = weekRangeLabel(currentDate);
-    renderWeekView();
+    mountWeekSwipe(); // replaces renderWeekView();
   } else if (currentView === 'day') {
     elPeriod.textContent = currentDate.toLocaleDateString('default', {
       weekday: 'long', month: 'long', day: 'numeric',
