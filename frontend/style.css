@@ -987,6 +987,48 @@ select:focus {
   min-height: calc(24 * var(--hour-h));
 }
 
+/* -- Swipeable week paging ------------------------------------------- */
+
+.week-swipe-viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  touch-action: pan-y;   /* vertical scroll stays native; horizontal is ours */
+}
+
+.week-track {
+  display: flex;
+  width: 300%;
+  height: 100%;
+  transform: translateX(-33.3333%); /* centers the middle (current) pane */
+}
+
+.week-track.dragging {
+  transition: none;      /* instant, 1:1 finger tracking */
+}
+
+.week-track.settling {
+  transition: transform 280ms cubic-bezier(.2, .8, .2, 1);
+}
+
+.week-track > .week-view {
+  flex: 0 0 33.3333%;
+  width: 33.3333%;
+  min-width: 0;
+}
+
+.week-allday-row.allday-flip-transition {
+  transition: max-height 260ms cubic-bezier(.2, .8, .2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .week-track.settling,
+  .week-allday-row.allday-flip-transition {
+    transition-duration: 1ms !important;
+  }
+}
+
 /* -- Time gutter ------------------------------------------ */
 
 .week-time-gutter {
