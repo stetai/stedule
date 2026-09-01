@@ -880,6 +880,48 @@ function buildWeekPane(baseDate) {
   */
 }
 
+// --- swipe to navigate ------------------------------
+
+function mountWeekSwipe() {
+  const prevPane    = buildWeekPane(addDays(currentDate, -7));
+  const currentPane = buildWeekPane(currentDate);
+  const nextPane    = buildWeekPane(addDays(currentDate, +7));
+
+  // Freeze all-day row height to transition later
+  const currentHeight = currentPane.alldayRow.dataset.naturalMaxHeight;
+  freezeAllDayHeight(prevPane.alldayRow, currentHeight);
+  freezeAllDayHeight(nextPane.alldayRow, currentHeight);
+
+  const viewport = document.createElement('div');
+  viewport.className = 'week-swipe-viewport';
+
+  const track = document.createElement('div');
+  track.className = 'week-track';
+  track.appendChild(prevPane.el);
+  track.appendChild(currentPane.el);
+  track.appendChild(nextPane.el);
+
+  viewport.appendChild(track);
+  elGrid.appendChild(viewport);
+
+  weekTrackEl  = track;
+  weekScrollEl = currentPane.scrollEl;
+
+  if (_savedScrollTop !== null) {
+    weekScrollEl.scrollTop = _savedScrollTop;
+    _savedScrollTop = null;
+  }
+  syncScrollAcrossPanes(weekScrollEl);
+  updateNowIndicator();
+
+  bindWeekSwipeGestures(viewport);
+}
+
+function freezeAllDayHeight(row, heightPx) {
+  row.style.transition = 'none';
+  row.style.maxHeight = heightPx;
+}
+
 // --- All-day band (week view) ---
 
 const ALLDAY_LANE_H    = 16; // px, must match .allday-chip height in style.css
