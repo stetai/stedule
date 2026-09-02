@@ -317,6 +317,16 @@ async function init() {
   // Keyboard: Escape closes the modal.
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeModal();
+
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    if (currentView !== 'week') return;
+
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return; // typing, date pickers
+    if (elOverlay.classList.contains('open') || elSettingsOverlay.classList.contains('open')) return;
+
+    e.preventDefault();
+    navigate(e.key === 'ArrowRight' ? +1 : -1);
   });
 
   elTitle.addEventListener('keydown', (e) => {
@@ -851,6 +861,33 @@ function buildWeekPane(baseDate) {
   view.appendChild(scroll);
 
   return { el: view, scrollEl: scroll, alldayRow };
+}
+
+function navigate(direction) {
+  if (currentView === 'week') {
+    slideToWeek(direction);
+    return;
+  }
+
+  if (weekScrollEl) _savedScrollTop = weekScrollEl.scrollTop;
+
+  if (currentView === 'month') {
+    currentDate.setMonth(currentDate.getMonth() + direction);
+  } else if (currentView === 'day') {
+    currentDate.setDate(currentDate.getDate() + _seqcDayNum * direction);
+  }
+  renderCalendar();
+}
+
+/**
+ * Slides the week view in the specified direction.
+ * @param {number} direction - The direction to slide (1 for next, -1 for previous).
+ */
+function slideToWeek(direction) {
+  if (trackBusy || !weekTrackEl) return;
+  trackBusy = true;
+  if (weekScrollEl) _savedScrollTop = weekScrollEl.scrollTop;
+  settleTrack(direction);
 }
 
 // --- swipe to navigate ------------------------------
