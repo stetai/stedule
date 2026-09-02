@@ -855,6 +855,102 @@ function buildWeekPane(baseDate) {
 
 // --- swipe to navigate ------------------------------
 
+const SWIPE_LOCK_PX        = 8;    // movement before we decide horizontal vs. vertical
+const SWIPE_COMMIT_RATIO   = 0.22; // fraction of viewport width that commits a page change
+const SWIPE_COMMIT_VELOCITY = 0.5; // px/ms — a fast flick commits even if short
+
+function bindWeekSwipeGestures(viewport) {
+  viewport.addEventListener('pointerdown', onWeekSwipeStart);
+}
+
+function onWeekSwipeStart(e) {
+  if (trackBusy) return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  // Let existing gestures keep owning their own targets.
+  if (e.target.closest('.week-event, .allday-chip, .week-event-outline, .week-event-resize')) return;
+  if (chipDrag || moving || resizing) return;
+
+  weekDrag = {
+    pointerId: e.pointerId,
+    startX: e.clientX, startY: e.clientY,
+    lastX: e.clientX, lastT: performance.now(),
+    velocity: 0,
+    locked: null, // null = undecided, 'x' = swiping, 'y' = handed back to native scroll
+    viewport,
+  };
+
+  document.addEventListener('pointermove', onWeekSwipeMove);
+  document.addEventListener('pointerup', onWeekSwipeEnd);
+  document.addEventListener('pointercancel', onWeekSwipeCancel);
+}
+
+function onWeekSwipeMove(e) {
+  if (!weekDrag || e.pointerId !== weekDrag.pointerId) return;
+
+  const dx = e.clientX - weekDrag.startX;
+  const dy = e.clientY - weekDrag.startY;
+
+  if (weekDrag.locked === null) {
+    if (Math.abs(dx) < SWIPE_LOCK_PX && Math.abs(dy) < SWIPE_LOCK_PX) return;
+    weekDrag.locked = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+    if (weekDrag.locked === 'y') { teardownWeekSwipe(); return; } // it's a vertical scroll
+
+    trackBusy = true;
+    weekTrackEl.classList.add('dragging');
+    weekTrackEl.classList.remove('settling');
+    document.addEventListener('touchmove', blockTouchScroll, { passive: false });
+  }
+
+  const now = performance.now();
+  const dt  = now - weekDrag.lastT;
+  if (dt > 0) weekDrag.velocity = (e.clientX - weekDrag.lastX) / dt;
+  weekDrag.lastX = e.clientX;
+  weekDrag.lastT = now;
+
+  e.preventDefault();
+  weekTrackEl.style.transform = `translateX(calc(-33.3333% + ${Math.round(dx)}px))`;
+}
+
+function onWeekSwipeEnd(e) {
+  if (!weekDrag || e.pointerId !== weekDrag.pointerId) return;
+
+  const dx = e.clientX - weekDrag.startX;
+  const wasSwiping = weekDrag.locked === 'x';
+  const velocity = weekDrag.velocity;
+  teardownWeekSwipe();
+  if (!wasSwiping) return;
+
+  swallowNextClick(); // real drag happened; the browser's ghost click must not open a new event
+
+  const width = weekDrag.viewport.getBoundingClientRect().width;
+  const committed = dx !== 0 &&
+    (Math.abs(dx) > width * SWIPE_COMMIT_RATIO || Math.abs(velocity) > SWIPE_COMMIT_VELOCITY);
+
+  committed ? settleTrack(dx < 0 ? +1 : -1) : cancelSwipe();
+}
+
+function onWeekSwipeCancel(e) {
+  if (!weekDrag || e.pointerId !== weekDrag.pointerId) return;
+  const wasSwiping = weekDrag.locked === 'x';
+  teardownWeekSwipe();
+  if (wasSwiping) cancelSwipe();
+}
+
+function teardownWeekSwipe() {
+  document.removeEventListener('pointermove', onWeekSwipeMove);
+  document.removeEventListener('pointerup', onWeekSwipeEnd);
+  document.removeEventListener('pointercancel', onWeekSwipeCancel);
+  document.removeEventListener('touchmove', blockTouchScroll);
+  weekDrag = null;
+}
+
+function swallowNextClick() {
+  document.addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+  }, { capture: true, once: true });
+}
+
 function mountWeekSwipe() {
   const prevPane    = buildWeekPane(addDays(currentDate, -7));
   const currentPane = buildWeekPane(currentDate);
