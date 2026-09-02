@@ -682,6 +682,7 @@ function buildWeekPane(baseDate) {
 
   const scroll = document.createElement('div');
   scroll.className = 'week-scroll';
+  scroll.addEventListener('scroll', () => syncScrollAcrossPanes(scroll));
 
   const body = document.createElement('div');
   body.className = 'week-body';
@@ -850,34 +851,6 @@ function buildWeekPane(baseDate) {
   view.appendChild(scroll);
 
   return { el: view, scrollEl: scroll, alldayRow };
-
-  /*
-  body.appendChild(daysWrap);
-  scroll.appendChild(body);
-  view.appendChild(scroll);
-  elGrid.appendChild(view);
-
-  //render titles if chip is wide enough
-  const colWidthPx = daysWrap.querySelector('.week-day-col')
-                      ?.getBoundingClientRect().width ?? 0;
-  const MIN_TITLE_PX = 0.6 * HOUR_H; // reuse HOUR_H as proxy for readable width
-
-  for (const { titleEl, timeEl, widthPct } of chipsToCheck) {
-    const effectiveWidthPx = (widthPct / 100) * colWidthPx - CHIP_PADDING;
-    if (effectiveWidthPx < MIN_TITLE_PX) {
-      titleEl.textContent = '';
-      timeEl.textContent = '';
-    }
-  }
-
-  updateNowIndicator();
-
-  // Restore scroll position if one was saved
-  if (_savedScrollTop !== null) {
-    scroll.scrollTop = _savedScrollTop;
-    _savedScrollTop = null;
-  }
-  */
 }
 
 // --- swipe to navigate ------------------------------
@@ -989,6 +962,14 @@ function finishWeekChange(direction) {
   flipAllDayHeight(newCurrentPane.alldayRow, frozenHeight);
 
   trackBusy = false;
+}
+
+function syncScrollAcrossPanes(sourceScrollEl) {
+  if (!weekTrackEl) return;
+  const top = sourceScrollEl.scrollTop;
+  weekTrackEl.querySelectorAll('.week-scroll').forEach(el => {
+    if (el !== sourceScrollEl) el.scrollTop = top;
+  });
 }
 
 function freezeAllDayHeight(row, heightPx) {
