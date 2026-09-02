@@ -1662,109 +1662,6 @@ function onChipDragEnd(e) {
 }
 
 /**
- * Animates a cancelled drag's chip back to its pre-drag position, size and column.
- */
-function returnChipToOrigin(drag) {
-  const { chip, origCol, origTop, origLeft, origWidth, origHeight } = drag;
-
-  const beforeRect = chip.getBoundingClientRect();
-
-  if (chip.parentNode !== origCol) origCol.appendChild(chip);
-
-  const parentRect = origCol.getBoundingClientRect();
-
-  chip.style.transition = 'none';
-  chip.style.top    = `${beforeRect.top  - parentRect.top}px`;
-  chip.style.left   = `${beforeRect.left - parentRect.left}px`;
-  chip.style.right  = '';
-  chip.style.width  = `${beforeRect.width}px`;
-  chip.style.height = `${beforeRect.height}px`;
-
-  void chip.offsetHeight; // force layout: commit change before animation.
-
-  chip.classList.add('returning');
-  chip.style.transition = '';
-
-  requestAnimationFrame(() => {
-    chip.style.top    = origTop;
-    chip.style.left   = origLeft;
-    chip.style.width  = origWidth;
-    chip.style.height = origHeight;
-  });
-
-  let cleanedUp = false;
-  const finish = () => {
-    if (cleanedUp) return;
-    cleanedUp = true;
-    clearTimeout(fallback);
-    chip.removeEventListener('transitionend', done);
-    chip.classList.remove('returning', 'dragging', 'will-cancel');
-  };
-
-  function done(ev) {
-    if (ev.propertyName !== 'top') return; // four properties animate together; fire once
-    finish();
-  }
-
-  const fallback = setTimeout(finish, 400); // > the 260ms .returning transition
-
-  chip.addEventListener('transitionend', done);
-}
-
-/**
- * smoothly animates every .week-event chip whose position or size changed
- */
-function flipRerender(applyChanges) {
-  const before = new Map();
-  document.querySelectorAll('.week-event[data-flip-key]').forEach(chip => {
-    const key = chip.dataset.flipKey;
-    if (!before.has(key)) before.set(key, []);
-    before.get(key).push(chip.getBoundingClientRect());
-  });
- 
-  applyChanges();
-
-  const segmentSeen = new Map();
- 
-  document.querySelectorAll('.week-event[data-flip-key]').forEach(chip => {
-    const key = chip.dataset.flipKey;
-    const segment = segmentSeen.get(key) ?? 0;
-    segmentSeen.set(key, segment + 1);
-
-    const oldRect = before.get(key)?.[segment];
-    if (!oldRect) return; // a genuinely new chip - nothing to animate from
- 
-    const newRect = chip.getBoundingClientRect();
-    const dx = oldRect.left - newRect.left;
-    const dy = oldRect.top  - newRect.top;
-    const sx = oldRect.width  / newRect.width;
-    const sy = oldRect.height / newRect.height;
- 
-    const unchanged = Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5
-                    && Math.abs(sx - 1) < 0.01 && Math.abs(sy - 1) < 0.01;
-    if (unchanged) return;
- 
-    chip.style.transformOrigin = 'top left';
-    chip.style.transition = 'none';
-    chip.style.transform  = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
- 
-    void chip.offsetHeight; // force layout: commit the instant "invert" above...
- 
-    chip.classList.add('flip-transition'); // ...before letting this transition it away.
-    chip.style.transition = '';
-    requestAnimationFrame(() => { chip.style.transform = ''; });
- 
-    chip.addEventListener('transitionend', function done(e) {
-      if (e.propertyName !== 'transform') return;
-      chip.removeEventListener('transitionend', done);
-      chip.classList.remove('flip-transition');
-      chip.style.transformOrigin = '';
-    });
-  });
-}
-
-
-/**
  * Persists a dragged event's new start/end. 
  * Recurring occurrences get a sparse per-occurrence exception.
  */
@@ -2892,6 +2789,127 @@ function updateNowIndicator() {
     dot.style.top = `${topPx}px`;
     gutter.appendChild(dot);
   }
+}
+
+/**
+ * Animates a cancelled drag's chip back to its pre-drag position, size and column.
+ */
+function returnChipToOrigin(drag) {
+  const { chip, origCol, origTop, origLeft, origWidth, origHeight } = drag;
+
+  const beforeRect = chip.getBoundingClientRect();
+
+  if (chip.parentNode !== origCol) origCol.appendChild(chip);
+
+  const parentRect = origCol.getBoundingClientRect();
+
+  chip.style.transition = 'none';
+  chip.style.top    = `${beforeRect.top  - parentRect.top}px`;
+  chip.style.left   = `${beforeRect.left - parentRect.left}px`;
+  chip.style.right  = '';
+  chip.style.width  = `${beforeRect.width}px`;
+  chip.style.height = `${beforeRect.height}px`;
+
+  void chip.offsetHeight; // force layout: commit change before animation.
+
+  chip.classList.add('returning');
+  chip.style.transition = '';
+
+  requestAnimationFrame(() => {
+    chip.style.top    = origTop;
+    chip.style.left   = origLeft;
+    chip.style.width  = origWidth;
+    chip.style.height = origHeight;
+  });
+
+  let cleanedUp = false;
+  const finish = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    clearTimeout(fallback);
+    chip.removeEventListener('transitionend', done);
+    chip.classList.remove('returning', 'dragging', 'will-cancel');
+  };
+
+  function done(ev) {
+    if (ev.propertyName !== 'top') return; // four properties animate together; fire once
+    finish();
+  }
+
+  const fallback = setTimeout(finish, 400); // > the 260ms .returning transition
+
+  chip.addEventListener('transitionend', done);
+}
+
+/**
+ * smoothly animates every .week-event chip whose position or size changed
+ */
+function flipRerender(applyChanges) {
+  const before = new Map();
+  document.querySelectorAll('.week-event[data-flip-key]').forEach(chip => {
+    const key = chip.dataset.flipKey;
+    if (!before.has(key)) before.set(key, []);
+    before.get(key).push(chip.getBoundingClientRect());
+  });
+ 
+  applyChanges();
+
+  const segmentSeen = new Map();
+ 
+  document.querySelectorAll('.week-event[data-flip-key]').forEach(chip => {
+    const key = chip.dataset.flipKey;
+    const segment = segmentSeen.get(key) ?? 0;
+    segmentSeen.set(key, segment + 1);
+
+    const oldRect = before.get(key)?.[segment];
+    if (!oldRect) return; // a genuinely new chip - nothing to animate from
+ 
+    const newRect = chip.getBoundingClientRect();
+    const dx = oldRect.left - newRect.left;
+    const dy = oldRect.top  - newRect.top;
+    const sx = oldRect.width  / newRect.width;
+    const sy = oldRect.height / newRect.height;
+ 
+    const unchanged = Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5
+                    && Math.abs(sx - 1) < 0.01 && Math.abs(sy - 1) < 0.01;
+    if (unchanged) return;
+ 
+    chip.style.transformOrigin = 'top left';
+    chip.style.transition = 'none';
+    chip.style.transform  = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+ 
+    void chip.offsetHeight; // force layout: commit the instant "invert" above...
+ 
+    chip.classList.add('flip-transition'); // ...before letting this transition it away.
+    chip.style.transition = '';
+    requestAnimationFrame(() => { chip.style.transform = ''; });
+ 
+    chip.addEventListener('transitionend', function done(e) {
+      if (e.propertyName !== 'transform') return;
+      chip.removeEventListener('transitionend', done);
+      chip.classList.remove('flip-transition');
+      chip.style.transformOrigin = '';
+    });
+  });
+}
+
+function flipAllDayHeight(row, fromHeightPx) {
+  const toHeight = row.dataset.naturalMaxHeight;
+  if (fromHeightPx === toHeight) return; // nothing to animate
+
+  row.style.transition = 'none';
+  row.style.maxHeight = fromHeightPx;
+  void row.offsetHeight;                 // commit the "from" state (First/Invert)
+
+  row.classList.add('allday-flip-transition');
+  requestAnimationFrame(() => { row.style.maxHeight = toHeight; }); // Play
+
+  row.addEventListener('transitionend', function done(e) {
+    if (e.propertyName !== 'max-height') return;
+    row.removeEventListener('transitionend', done);
+    row.classList.remove('allday-flip-transition');
+    row.style.transition = '';
+  });
 }
 
 /**
