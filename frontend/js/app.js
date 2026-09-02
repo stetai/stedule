@@ -513,20 +513,6 @@ async function save() {
 // NAVIGATION
 // ------------------------------------------------------------
 
-function navigate(direction) {
-
-  if (weekScrollEl) _savedScrollTop = weekScrollEl.scrollTop;
-
-  if (currentView === 'month') {
-    currentDate.setMonth(currentDate.getMonth() + direction);
-  } else if (currentView === 'week') {
-    currentDate.setDate(currentDate.getDate() + 7 * direction); // 7 stays here
-  } else if (currentView === 'day') {
-    currentDate.setDate(currentDate.getDate() + _seqcDayNum * direction);
-  }
-  renderCalendar();
-}
-
 function goToToday() {
   currentDate = new Date();
   renderCalendar();
@@ -913,7 +899,7 @@ function onWeekSwipeStart(e) {
     lastX: e.clientX, lastT: performance.now(),
     velocity: 0,
     locked: null, // null = undecided, 'x' = swiping, 'y' = handed back to native scroll
-    viewport,
+    viewport: e.currentTarget,
   };
 
   document.addEventListener('pointermove', onWeekSwipeMove);
@@ -951,16 +937,17 @@ function onWeekSwipeMove(e) {
 function onWeekSwipeEnd(e) {
   if (!weekDrag || e.pointerId !== weekDrag.pointerId) return;
 
-  const dx = e.clientX - weekDrag.startX;
-  const wasSwiping = weekDrag.locked === 'x';
-  const velocity = weekDrag.velocity;
+  const { viewport, velocity, locked, startX } = weekDrag;
+
+  const dx = e.clientX - startX;
+
   teardownWeekSwipe();
-  if (!wasSwiping) return;
+  if (locked !== 'x') return; // vertical scroll
 
   swallowNextClick(); // real drag happened; the browser's ghost click must not open a new event
 
-  const width = weekDrag.viewport.getBoundingClientRect().width;
-  const committed = dx !== 0 &&
+  const width = viewport.getBoundingClientRect().width;
+  const committed = width > 0 &&
     (Math.abs(dx) > width * SWIPE_COMMIT_RATIO || Math.abs(velocity) > SWIPE_COMMIT_VELOCITY);
 
   committed ? settleTrack(dx < 0 ? +1 : -1) : cancelSwipe();
