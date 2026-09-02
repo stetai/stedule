@@ -917,6 +917,80 @@ function mountWeekSwipe() {
   bindWeekSwipeGestures(viewport);
 }
 
+function settleTrack(direction) {
+  weekTrackEl.classList.remove('dragging');
+  weekTrackEl.classList.add('settling');
+  weekTrackEl.style.transform = `translateX(${direction > 0 ? -200 / 3 : 0}%)`;
+
+  weekTrackEl.addEventListener('transitionend', function onEnd(e) {
+    if (e.propertyName !== 'transform') return;
+    weekTrackEl.removeEventListener('transitionend', onEnd);
+    finishWeekChange(direction);
+  });
+}
+
+function cancelSwipe() {
+  weekTrackEl.classList.remove('dragging');
+  weekTrackEl.classList.add('settling');
+  weekTrackEl.style.transform = 'translateX(-33.3333%)';
+
+  weekTrackEl.addEventListener('transitionend', function onEnd(e) {
+    if (e.propertyName !== 'transform') return;
+    weekTrackEl.removeEventListener('transitionend', onEnd);
+    weekTrackEl.classList.remove('settling');
+    trackBusy = false;
+  });
+}
+
+function finishWeekChange(direction) {
+  const track = weekTrackEl;
+  const [prevEl, currentEl, nextEl] = track.children;
+  const incomingPane = direction > 0 ? nextEl : prevEl; // slid fully into view
+  const outgoingRow  = currentEl.querySelector('.week-allday-row');
+  const frozenHeight = outgoingRow.style.maxHeight; // what's on-screen right now
+
+  currentDate = addDays(currentDate, 7 * direction);
+  elPeriod.textContent = weekRangeLabel(currentDate);
+
+  const farDate = addDays(currentDate, direction > 0 ? 7 : -7);
+  const farPane = buildWeekPane(farDate);
+
+  const newCurrentPane = { el: incomingPane, scrollEl: incomingPane.querySelector('.week-scroll'), alldayRow: incomingPane.querySelector('.week-allday-row') };
+
+  track.innerHTML = '';
+  if (direction > 0) {
+    track.appendChild(currentEl);   // old current -> new prev
+    track.appendChild(incomingPane);
+    track.appendChild(farPane.el);
+  } else {
+    track.appendChild(farPane.el);
+    track.appendChild(incomingPane);
+    track.appendChild(currentEl);   // old current -> new next
+  }
+
+  // Snap back to centered, instantly — the visible pane doesn't move.
+  track.classList.remove('settling');
+  track.style.transition = 'none';
+  track.style.transform = 'translateX(-33.3333%)';
+  void track.offsetHeight;
+  track.style.transition = '';
+
+  freezeAllDayHeight(direction > 0 ? farPane.alldayRow : outgoingRow, frozenHeight);
+  freezeAllDayHeight(direction > 0 ? outgoingRow : farPane.alldayRow, frozenHeight);
+
+  weekScrollEl = newCurrentPane.scrollEl;
+  if (_savedScrollTop !== null) {
+    weekScrollEl.scrollTop = _savedScrollTop;
+    _savedScrollTop = null;
+  }
+  syncScrollAcrossPanes(weekScrollEl);
+  updateNowIndicator();
+
+  flipAllDayHeight(newCurrentPane.alldayRow, frozenHeight);
+
+  trackBusy = false;
+}
+
 function freezeAllDayHeight(row, heightPx) {
   row.style.transition = 'none';
   row.style.maxHeight = heightPx;
