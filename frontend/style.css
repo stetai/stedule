@@ -1289,3 +1289,300 @@ select:focus {
    -ms-user-select: none;
    user-select: none;
 }
+/* ####################################################################
+   REVIEW VIEW
+   Rows are ISO weeks, columns are weekdays. Uniform square cells,
+   newest at the bottom, like a GitHub contribution grid turned so that
+   "down" means "more recent".
+#################################################################### */
+
+:root {
+  --review-gap:      4px;
+  --review-gutter:   34px;  /* week-number column */
+  --review-cell-max: 44px;  /* keeps cells sane on wide screens */
+}
+
+.calendar-grid.view-review {
+  /* Override the grid layout declared on .calendar-grid */
+  display: flex;
+  flex-direction: column;
+  grid-template-columns: unset;
+  grid-auto-rows: unset;
+  min-height: 0;
+}
+
+.review-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* -- column headers (sticky above the scroll area) ------------------- */
+
+.review-head {
+  display: grid;
+  grid-template-columns: var(--review-gutter) repeat(7, minmax(0, 1fr));
+  gap: var(--review-gap);
+  flex-shrink: 0;
+  padding-bottom: var(--space-xs);
+  max-width: calc(var(--review-gutter) + 7 * var(--review-cell-max) + 8 * var(--review-gap));
+}
+
+.review-head-label {
+  text-align: center;
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+}
+
+/* -- scroll area ----------------------------------------------------- */
+
+.review-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.review-scroll::-webkit-scrollbar { display: none; }
+
+.review-grid {
+  display: grid;
+  grid-template-columns: var(--review-gutter) repeat(7, minmax(0, 1fr));
+  gap: var(--review-gap);
+  align-content: start;
+  max-width: calc(var(--review-gutter) + 7 * var(--review-cell-max) + 8 * var(--review-gap));
+}
+
+/* -- week number gutter ---------------------------------------------- */
+
+.review-week-label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 2px;
+  font-family: var(--font-numeric);
+  font-size: 0.66rem;
+  color: var(--color-text-muted);
+  opacity: 0.65;
+  white-space: nowrap;
+}
+
+/* First week of a month gets a hairline so months stay legible without
+   stealing a whole row. */
+.review-week-label.month-start,
+.review-cell.month-start {
+  border-top: 1px solid var(--color-border);
+  padding-top: 1px;
+}
+
+.review-week-label.month-start {
+  opacity: 1;
+  color: var(--color-text);
+}
+
+/* -- cells ------------------------------------------------------------ */
+
+.review-cell {
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+
+.review-cell.filled {
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.review-cell.today {
+  box-shadow: inset 0 0 0 2px var(--color-today);
+}
+
+.review-cell.future,
+.review-cell.spacer {
+  cursor: default;
+  box-shadow: none;
+  background: transparent;
+  pointer-events: none;
+}
+
+.review-cell:not(.future):not(.spacer):hover {
+  transform: scale(1.12);
+  box-shadow: inset 0 0 0 1px var(--color-text-muted), var(--shadow-sm);
+}
+
+.review-cell:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* -- footer summary --------------------------------------------------- */
+
+.review-summary {
+  flex-shrink: 0;
+  display: flex;
+  gap: var(--space-md);
+  padding-top: var(--space-sm);
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.review-summary strong {
+  color: var(--color-text);
+  font-family: var(--font-numeric);
+  font-weight: 500;
+}
+
+.review-empty {
+  padding: var(--space-lg) 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+/* ============================================================
+   REVIEW MODAL — sliders
+============================================================ */
+
+#review-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.review-slider-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.review-slider-group label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* Small colour dot so the axis and its primary are linked visually. */
+.review-axis-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+input[type="range"].review-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  accent-color: var(--axis-color, var(--color-accent));
+}
+
+input[type="range"].review-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #000 0%, var(--axis-color, var(--color-accent)) 100%);
+  border: 1px solid var(--color-border);
+}
+
+input[type="range"].review-range::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #000 0%, var(--axis-color, var(--color-accent)) 100%);
+  border: 1px solid var(--color-border);
+}
+
+/* --review-thumb must match REVIEW_THUMB_PX in app.js: the tick row is
+   inset by half a thumb so tick 0 sits under the thumb at value 0. */
+input[type="range"].review-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--review-thumb, 18px);
+  height: var(--review-thumb, 18px);
+  margin-top: calc((6px - var(--review-thumb, 18px)) / 2);
+  border-radius: 50%;
+  background: var(--color-text);
+  border: 2px solid var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+input[type="range"].review-range::-moz-range-thumb {
+  width: var(--review-thumb, 18px);
+  height: var(--review-thumb, 18px);
+  border-radius: 50%;
+  background: var(--color-text);
+  border: 2px solid var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+input[type="range"].review-range:focus-visible {
+  outline: none;
+}
+
+input[type="range"].review-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px var(--color-accent-soft, rgba(184, 26, 26, 0.3));
+}
+
+/* -- tick marks ------------------------------------------------------- */
+
+.review-ticks {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  height: 9px;
+  margin: 0 calc(var(--review-thumb, 18px) / 2);
+}
+
+.review-tick {
+  width: 1px;
+  height: 4px;
+  background: var(--color-text-muted);
+  opacity: 0.45;
+  border-radius: 1px;
+}
+
+.review-tick.major {
+  width: 2px;
+  height: 8px;
+  opacity: 0.85;
+}
+
+/* -- colour preview --------------------------------------------------- */
+
+.review-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.review-preview-swatch {
+  width: 46px;
+  height: 46px;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  transition: background 0.12s;
+}
+
+.review-preview-hint {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-numeric);
+}
+
+/* ============================================================
+   SETTINGS — hint text
+============================================================ */
+
+.settings-hint {
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--color-text-muted);
+}
