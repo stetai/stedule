@@ -14,19 +14,51 @@ import {
   loadSyncedSettings,
   saveLocalSetting,
   saveSyncedSettings,
+  setPersistentSetting,
   setSetting
 } from './settings.js';
 
 import {
   getFileName,
   getFilePath,
+  getFolderName,
+  getReviewLocation,
   hasFileOpen,
+  hasReviewFile,
   isFirefox,
+  listIcsInFolder,
   openFile,
   openFileByPath,
+  openFolder,
+  openReviewFile,
   openSettingsFile,
-  writeFile
+  pickIcsInFolder,
+  readReview,
+  restoreFileFromHandle,
+  restoreFolder,
+  restoreReviewFile,
+  writeFile,
+  writeReview
 } from './storage.js';
+
+import {
+  AXES,
+  SCORE_MAX,
+  SCORE_MIN,
+  currentStreak,
+  dateKey,
+  deleteReview,
+  firstReviewDate,
+  getReview,
+  hasReview,
+  isReviewDataLoaded,
+  loadReviews,
+  reviewColor,
+  reviewCount,
+  scoresToHex,
+  serializeReviews,
+  setReview
+} from './review.js';
 
 import {
   addDays,
@@ -161,6 +193,13 @@ const elDragCancelZone = $('drag-cancel-zone');
 const elScopeOverlay = $('scope-overlay');
 const elScopeDesc    = $('scope-description');
 
+const elReviewOverlay = $('review-overlay');
+const elReviewTitle   = $('review-modal-title');
+const elReviewSliders = $('review-sliders');
+const elReviewSwatch  = $('review-preview-swatch');
+const elReviewHint    = $('review-preview-hint');
+const elReviewDelete  = $('review-delete');
+
 const elErrorOverlay   = $('error-overlay');
 const elErrorMessage   = $('error-message');
 const elConfirmOverlay = $('confirm-overlay');
@@ -223,6 +262,27 @@ async function init() {
 
   $('setting-files-add').addEventListener('click', async () => {
     await handleOpenFile();
+  });
+
+  $('setting-folder-add').addEventListener('click', handleChooseFolder);
+  $('setting-review-add').addEventListener('click', handleOpenReviewFile);
+
+  $('setting-review-prompt').addEventListener('change', (e) => {
+    setSetting('review', { ...(getSetting('review') ?? {}), promptOnLaunch: e.target.checked });
+    saveLocalSetting('reviewPromptOnLaunch', e.target.checked);
+    _settingChanged = true;
+  });
+
+  // Review modal
+  buildReviewSliders();
+  $('review-cancel').addEventListener('click', closeReviewModal);
+  $('review-close').addEventListener('click',  closeReviewModal);
+  $('review-save').addEventListener('click',   handleReviewSave);
+  $('review-delete').addEventListener('click', handleReviewDelete);
+
+  elReviewOverlay.addEventListener('click', (e) => {
+    if (e.target === elReviewOverlay) closeReviewModal();
+    e.stopPropagation();
   });
 
   // Add Event
@@ -316,7 +376,10 @@ async function init() {
 
   // Keyboard: Escape closes the modal.
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeModal();
+    if (e.key === 'Escape') {
+      closeModal();
+      if (elReviewOverlay.classList.contains('open')) closeReviewModal();
+    }
 
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
     if (currentView !== 'week') return;
@@ -324,6 +387,7 @@ async function init() {
     const tag = document.activeElement?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return; // typing, date pickers
     if (elOverlay.classList.contains('open') || elSettingsOverlay.classList.contains('open')) return;
+    if (elReviewOverlay.classList.contains('open')) return;
 
     e.preventDefault();
     navigate(e.key === 'ArrowRight' ? +1 : -1);
@@ -388,7 +452,27 @@ async function init() {
         setStatus('Calendar file unavailable. Please re-open manually.', 'error');
       }
     }
+  } else {
+    // Browser: the .ics handle lives in IndexedDB. queryPermission() is silent,
+    // so a still-granted handle reopens with no interaction at all.
+    try {
+      const raw = await restoreFileFromHandle(false);
+      if (raw) {
+        events = parseICS(raw);
+        renderCalendar();
+        setStatus(`Loaded: ${getFileName()} — ${events.length} event(s)`, 'saved');
+      } else if (getFileName()) {
+        setStatus(`${getFileName()} needs permission — press Open to continue.`);
+      }
+    } catch (err) {
+      console.warn('Could not restore calendar handle:', err);
+    }
   }
+
+  await restoreReviewStorage();
+  await loadReviewData();
+  await maybePromptYesterday();
+
   updateNowIndicator();
   setInterval(updateNowIndicator, 5 * 1000);
   setInterval(refreshTimeSensitiveUI, 5 * 1000);
@@ -431,6 +515,13 @@ async function openSettingsModal() {
   _updateSettingsPathDisplay(settingsPath);
 
   // files
+  _updatePathDisplay($('setting-folder-path'), getFolderName());
+  _updatePathDisplay($('setting-review-path'),
+    hasReviewFile() ? getReviewLocation() : 'Not set — reviews stay in memory only.');
+
+  $('setting-review-prompt').checked =
+    (getSetting('review')?.promptOnLaunch ?? await getLocalSetting('reviewPromptOnLaunch')) !== false;
+
   // categories
 
   // theme
@@ -515,6 +606,10 @@ async function save() {
 
 function goToToday() {
   currentDate = new Date();
+  if (currentView === 'review') {
+    scrollReviewToBottom();   // "today" in the review grid = the newest row
+    return;
+  }
   renderCalendar();
 }
 
@@ -525,6 +620,11 @@ function switchView(view) {
   document.querySelectorAll('.btn-view').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.view === view);
   });
+
+  // The review grid shows every week at once, so paging is meaningless there.
+  const paging = view !== 'review';
+  $('btn-prev').style.display = paging ? '' : 'none';
+  $('btn-next').style.display = paging ? '' : 'none';
 
   renderCalendar();
 }
@@ -557,6 +657,10 @@ function renderCalendar() {
       weekday: 'long', month: 'long', day: 'numeric',
     });
     renderDayView();
+  } else if (currentView === 'review') {
+    const streak = currentStreak();
+    elPeriod.textContent = streak > 1 ? `${streak} days in a row` : 'Review';
+    renderReviewView();
   }
 }
 
@@ -1251,6 +1355,444 @@ function renderDayView() {
   const cell = createDayCell(currentDate, dayEvents);
   cell.style.gridColumn = '1 / -1'; // span all 7 columns
   elGrid.appendChild(cell);
+}
+
+// ############################################################
+// REVIEW VIEW
+// ############################################################
+
+// Always show at least this many weeks, so a first-time user sees a grid
+// rather than a single lonely row.
+const REVIEW_MIN_WEEKS = 8;
+
+const REVIEW_THUMB_PX     = 18;      // must match --review-thumb in style.css
+const REVIEW_MAJOR_TICKS  = [2, 5, 8];
+const REVIEW_DEFAULT      = 5;       // neutral starting position for a new day
+
+let _reviewScrollEl = null;
+let _reviewCells    = new Map();     // 'YYYY-MM-DD' -> cell element
+let _reviewDate     = null;          // day currently in the modal
+let _reviewPromptDay = null;         // set when the modal was opened by the launch prompt
+
+// ------------------------------------------------------------
+// Grid
+// ------------------------------------------------------------
+
+function renderReviewView() {
+  elGrid.className = 'calendar-grid view-review';
+  elGrid.innerHTML = '';
+  _reviewCells = new Map();
+
+  const keepScroll = _reviewScrollEl?.scrollTop ?? null;
+  const wasAtBottom = _reviewScrollEl
+    ? _reviewScrollEl.scrollTop + _reviewScrollEl.clientHeight >= _reviewScrollEl.scrollHeight - 4
+    : true;
+
+  const pane = document.createElement('div');
+  pane.className = 'review-pane';
+
+  // Column headers, outside the scroll area so they stay put.
+  const head = document.createElement('div');
+  head.className = 'review-head';
+  head.appendChild(document.createElement('div')); // week-number gutter
+  for (const name of reviewWeekdayNames()) {
+    const el = document.createElement('div');
+    el.className = 'review-head-label';
+    el.textContent = name;
+    head.appendChild(el);
+  }
+  pane.appendChild(head);
+
+  const scroll = document.createElement('div');
+  scroll.className = 'review-scroll';
+
+  const grid = document.createElement('div');
+  grid.className = 'review-grid';
+
+  const today    = startOfDay(new Date());
+  const lastWeek = startOfWeek(today);
+  const first    = firstReviewDate();
+  const minWeek  = addDays(lastWeek, -7 * (REVIEW_MIN_WEEKS - 1));
+
+  let weekStart = first ? startOfWeek(first) : minWeek;
+  if (weekStart > minWeek) weekStart = minWeek;
+
+  let prevMonth = null;
+  for (let w = new Date(weekStart); w <= lastWeek; w = addDays(w, 7)) {
+    // A week "starts a month" when its Monday is in a different month than the
+    // previous row's. Cheaper than a dedicated month column and keeps the grid
+    // spacing uniform, as specified.
+    const monthStart = prevMonth !== null && w.getMonth() !== prevMonth;
+    prevMonth = w.getMonth();
+
+    const label = document.createElement('div');
+    label.className = 'review-week-label' + (monthStart ? ' month-start' : '');
+    label.textContent = String(getWeekNumber(w));
+    label.title = `Week ${getWeekNumber(w)} · ${w.toLocaleDateString('default', { month: 'long', year: 'numeric' })}`;
+    grid.appendChild(label);
+
+    for (let i = 0; i < 7; i++) {
+      grid.appendChild(createReviewCell(addDays(w, i), today, monthStart));
+    }
+  }
+
+  // One empty row below the newest week so the current row never sits flush
+  // against the bottom edge of the scroll pane.
+  const gutterSpacer = document.createElement('div');
+  gutterSpacer.setAttribute('aria-hidden', 'true');
+  grid.appendChild(gutterSpacer);
+  for (let i = 0; i < 7; i++) {
+    const s = document.createElement('div');
+    s.className = 'review-cell spacer';
+    s.setAttribute('aria-hidden', 'true');
+    grid.appendChild(s);
+  }
+
+  scroll.appendChild(grid);
+  pane.appendChild(scroll);
+  pane.appendChild(buildReviewSummary());
+  elGrid.appendChild(pane);
+
+  _reviewScrollEl = scroll;
+
+  // Default to the bottom (current week visible). requestAnimationFrame lets
+  // layout settle first, otherwise scrollHeight is still 0.
+  requestAnimationFrame(() => {
+    if (wasAtBottom || keepScroll === null) scroll.scrollTop = scroll.scrollHeight;
+    else scroll.scrollTop = keepScroll;
+  });
+}
+
+function reviewWeekdayNames() {
+  // startOfWeek() is Monday-based, so the columns are too.
+  return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+}
+
+function createReviewCell(date, today, monthStart) {
+  const cell = document.createElement('div');
+  cell.className = 'review-cell' + (monthStart ? ' month-start' : '');
+
+  if (date > today) {
+    cell.classList.add('future');
+    return cell;
+  }
+
+  const key = dateKey(date);
+  _reviewCells.set(key, cell);
+
+  if (isSameDay(date, today)) cell.classList.add('today');
+
+  cell.tabIndex = 0;
+  cell.setAttribute('role', 'button');
+  cell.addEventListener('click', () => openReviewModal(date));
+  cell.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openReviewModal(date);
+    }
+  });
+
+  paintReviewCell(key, date);
+  return cell;
+}
+
+/** Repaints one cell in place, so saving does not re-render (and re-scroll). */
+function paintReviewCell(key, date = null) {
+  const cell = _reviewCells.get(key);
+  if (!cell) return;
+
+  const entry = getReview(key);
+  const day   = date ?? new Date(`${key}T00:00:00`);
+
+  cell.classList.toggle('filled', !!entry);
+  cell.style.background = entry ? reviewColor(entry) : '';
+
+  cell.title = entry
+    ? `${formatDate(day)}\n` +
+      AXES.map(a => `${a.label} ${entry[a.key]}`).join(' · ')
+    : `${formatDate(day)}\nNo review yet`;
+  cell.setAttribute('aria-label', cell.title.replace(/\n/g, ', '));
+}
+
+function buildReviewSummary() {
+  const bar = document.createElement('div');
+  bar.className = 'review-summary';
+
+  const streak = currentStreak();
+  const parts  = [
+    `<strong>${reviewCount()}</strong> day${reviewCount() === 1 ? '' : 's'} logged`,
+  ];
+  if (streak > 0) parts.push(`<strong>${streak}</strong>-day streak`);
+  if (!hasReviewFile()) parts.push('not saved to a file yet');
+
+  bar.innerHTML = parts.map(p => `<span>${p}</span>`).join('');
+  return bar;
+}
+
+function scrollReviewToBottom() {
+  if (!_reviewScrollEl) return;
+  _reviewScrollEl.scrollTo({ top: _reviewScrollEl.scrollHeight, behavior: 'smooth' });
+}
+
+// ------------------------------------------------------------
+// Review modal
+// ------------------------------------------------------------
+
+/**
+ * Builds the three slider rows from AXES so the axis list lives in exactly
+ * one place (review.js). Called once, during init().
+ */
+function buildReviewSliders() {
+  elReviewSliders.innerHTML = '';
+
+  for (const axis of AXES) {
+    const group = document.createElement('div');
+    group.className = 'review-slider-group';
+    group.style.setProperty('--axis-color', axis.color);
+    group.style.setProperty('--review-thumb', `${REVIEW_THUMB_PX}px`);
+
+    const label = document.createElement('label');
+    label.setAttribute('for', `review-${axis.key}`);
+    const dot = document.createElement('span');
+    dot.className = 'review-axis-dot';
+    dot.style.background = axis.color;
+    label.append(dot, document.createTextNode(axis.label));
+
+    const input = document.createElement('input');
+    input.type      = 'range';
+    input.className = 'review-range';
+    input.id        = `review-${axis.key}`;
+    input.min       = SCORE_MIN;
+    input.max       = SCORE_MAX;
+    input.step      = 1;
+    input.value     = REVIEW_DEFAULT;
+    input.dataset.axis = axis.key;
+    input.setAttribute('aria-label', axis.label);
+    input.addEventListener('input', updateReviewPreview);
+
+    // Tick marks only — no numbers. The row is inset by half a thumb so the
+    // first and last tick line up with the thumb at its extremes.
+    const ticks = document.createElement('div');
+    ticks.className = 'review-ticks';
+    for (let i = SCORE_MIN; i <= SCORE_MAX; i++) {
+      const t = document.createElement('span');
+      t.className = 'review-tick' + (REVIEW_MAJOR_TICKS.includes(i) ? ' major' : '');
+      ticks.appendChild(t);
+    }
+
+    group.append(label, input, ticks);
+    elReviewSliders.appendChild(group);
+  }
+}
+
+function readReviewSliders() {
+  const out = {};
+  for (const axis of AXES) out[axis.key] = Number($(`review-${axis.key}`).value);
+  return out;
+}
+
+function updateReviewPreview() {
+  const s   = readReviewSliders();
+  const hex = scoresToHex(s.satisfaction, s.energy, s.productivity);
+  elReviewSwatch.style.background = hex;
+  elReviewHint.textContent = hex.toUpperCase();
+}
+
+/**
+ * @param {Date} date
+ * @param {{prompt?: boolean}} opts — prompt:true marks this as the launch
+ *        nudge, so cancelling it silences the nudge for that day.
+ */
+function openReviewModal(date, { prompt = false } = {}) {
+  _reviewDate      = startOfDay(date);
+  _reviewPromptDay = prompt ? dateKey(_reviewDate) : null;
+
+  const entry = getReview(dateKey(_reviewDate));
+
+  elReviewTitle.textContent = `Review for ${_reviewDate.toLocaleDateString()}`;
+
+  for (const axis of AXES) {
+    $(`review-${axis.key}`).value = entry ? entry[axis.key] : REVIEW_DEFAULT;
+  }
+
+  elReviewDelete.style.display = entry ? '' : 'none';
+  updateReviewPreview();
+
+  elReviewOverlay.classList.add('open');
+  elReviewOverlay.setAttribute('aria-hidden', 'false');
+}
+
+async function closeReviewModal() {
+  if (document.activeElement && elReviewOverlay.contains(document.activeElement)) {
+    document.activeElement.blur(); // prevent aria-hidden warning in Chrome
+  }
+
+  elReviewOverlay.classList.remove('open');
+  elReviewOverlay.setAttribute('aria-hidden', 'true');
+
+  if (_reviewPromptDay) {
+    // The launch nudge was dismissed — don't ask again for that day.
+    await saveLocalSetting('reviewPromptSkippedFor', _reviewPromptDay);
+    _reviewPromptDay = null;
+  }
+
+  _reviewDate = null;
+}
+
+async function handleReviewSave() {
+  if (!_reviewDate) return;
+
+  const key = dateKey(_reviewDate);
+  setReview(key, readReviewSliders());
+  _reviewPromptDay = null;          // answering counts as handled
+
+  await closeReviewModal();
+  paintReviewCell(key);
+  if (currentView === 'review') renderCalendar(); // refresh the streak label
+  await persistReviews();
+}
+
+async function handleReviewDelete() {
+  if (!_reviewDate) return;
+
+  const key = dateKey(_reviewDate);
+  if (!await showConfirm(`Delete the review for ${_reviewDate.toLocaleDateString()}?`)) return;
+
+  deleteReview(key);
+  _reviewPromptDay = null;
+
+  await closeReviewModal();
+  paintReviewCell(key);
+  if (currentView === 'review') renderCalendar();
+  await persistReviews();
+}
+
+// ------------------------------------------------------------
+// Review persistence
+// ------------------------------------------------------------
+
+/** Re-attaches the data folder (or the standalone review.json) on launch. */
+async function restoreReviewStorage() {
+  try {
+    const savedFolder = getSetting('dataFolder') ?? await getLocalSetting('dataFolder');
+    const state = await restoreFolder(savedFolder, false);
+
+    if (state === 'needs-permission') {
+      setStatus('Data folder needs permission — reconnect it in Settings.');
+      return;
+    }
+    if (state === 'ready') return;
+
+    const savedReview = getSetting('reviewPath') ?? await getLocalSetting('reviewPath');
+    await restoreReviewFile(savedReview, false);
+  } catch (err) {
+    console.warn('Could not restore review storage:', err);
+  }
+}
+
+async function loadReviewData() {
+  try {
+    loadReviews(await readReview());
+  } catch (err) {
+    loadReviews(null);
+    setStatus(`review.json could not be read: ${err?.message ?? err}`, 'error');
+  }
+  if (currentView === 'review') renderCalendar();
+}
+
+async function persistReviews() {
+  if (!hasReviewFile()) {
+    setStatus('Review kept in memory only — choose a data folder in Settings.', 'error');
+    return;
+  }
+
+  try {
+    await writeReview(serializeReviews());
+    setStatus('Review saved.', 'saved');
+  } catch (err) {
+    console.error('Review save failed:', err);
+    setStatus(`Could not save review: ${err?.message ?? String(err)}`, 'error');
+  }
+}
+
+/**
+ * The launch nudge. Stays quiet when there is nothing to write to, when
+ * yesterday is already reviewed, or when the user dismissed it for that day.
+ */
+async function maybePromptYesterday() {
+  if (!hasReviewFile() || !isReviewDataLoaded()) return;
+
+  const enabled = getSetting('review')?.promptOnLaunch
+    ?? await getLocalSetting('reviewPromptOnLaunch');
+  if (enabled === false) return;
+
+  const yesterday = addDays(startOfDay(new Date()), -1);
+  const key = dateKey(yesterday);
+
+  if (hasReview(key)) return;
+  if (await getLocalSetting('reviewPromptSkippedFor') === key) return;
+
+  openReviewModal(yesterday, { prompt: true });
+}
+
+// ------------------------------------------------------------
+// Review storage pickers (Settings)
+// ------------------------------------------------------------
+
+async function handleChooseFolder() {
+  try {
+    const id = await openFolder();
+    if (!id) return;
+
+    await setPersistentSetting('dataFolder', id);
+
+    const settingsPath = _isTauri ? await getLocalSetting('settingsPath') : null;
+    if (settingsPath) await saveSyncedSettings(settingsPath);
+
+    _updatePathDisplay($('setting-folder-path'), getFolderName());
+
+    // Adopt the calendar from the same folder when it is unambiguous, so the
+    // user only has to answer one picker.
+    if (!hasFileOpen()) {
+      const names = await listIcsInFolder();
+      if (names.length === 1) {
+        const picked = await pickIcsInFolder(names[0]);
+        if (picked) {
+          events = parseICS(picked.text);
+          renderCalendar();
+          refreshNotifs(events);
+        }
+      }
+    }
+
+    await loadReviewData();
+    _updatePathDisplay($('setting-review-path'), getReviewLocation());
+    setStatus(`Data folder: ${getFolderName()}`, 'saved');
+
+  } catch (err) {
+    if (err.name === 'AbortError') return;
+    setStatus(`Could not open folder: ${err?.message ?? String(err)}`, 'error');
+  }
+}
+
+async function handleOpenReviewFile() {
+  try {
+    const id = await openReviewFile();
+    if (!id) return;
+
+    await setPersistentSetting('reviewPath', id);
+
+    const settingsPath = _isTauri ? await getLocalSetting('settingsPath') : null;
+    if (settingsPath) await saveSyncedSettings(settingsPath);
+
+    await loadReviewData();
+    _updatePathDisplay($('setting-review-path'), getReviewLocation());
+    setStatus(`Review data: ${getReviewLocation()}`, 'saved');
+
+  } catch (err) {
+    if (err.name === 'AbortError') return;
+    setStatus(`Could not open review file: ${err?.message ?? String(err)}`, 'error');
+  }
 }
 
 // ============================================================
@@ -2530,12 +3072,18 @@ function resolveConfirm(result) {
 // settings
 
 function _updateSettingsPathDisplay(path) {
-  if (!path) {
-    elSettingsPathText.style.display = 'none';
-    elSettingsPathText.textContent = '';
+  _updatePathDisplay(elSettingsPathText, path);
+}
+
+/** Shows `text` in a .settings-path <p>, or hides it when text is falsy. */
+function _updatePathDisplay(el, text) {
+  if (!el) return;
+  if (!text) {
+    el.style.display = 'none';
+    el.textContent   = '';
   } else {
-    elSettingsPathText.textContent = path;
-    elSettingsPathText.style.display = '';
+    el.textContent   = text;
+    el.style.display = '';
   }
 }
 
