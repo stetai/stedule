@@ -45,7 +45,9 @@ import {
   AXES,
   SCORE_MAX,
   SCORE_MIN,
-  currentStreak,
+  averageEnergy,
+  averageProductivity,
+  averageSatisfaction,
   dateKey,
   deleteReview,
   firstReviewDate,
@@ -658,8 +660,8 @@ function renderCalendar() {
     });
     renderDayView();
   } else if (currentView === 'review') {
-    const streak = currentStreak();
-    elPeriod.textContent = streak > 1 ? `${streak} days in a row` : 'Review';
+    const count = reviewCount();
+    elPeriod.textContent = count > 0 ? `${count} day${count===1?'':'s'} recorded` : 'Review';
     renderReviewView();
   }
 }
@@ -1518,11 +1520,24 @@ function buildReviewSummary() {
   const bar = document.createElement('div');
   bar.className = 'review-summary';
 
-  const streak = currentStreak();
-  const parts  = [
+  /*const parts  = [
     `<strong>${reviewCount()}</strong> day${reviewCount() === 1 ? '' : 's'} logged`,
-  ];
-  if (streak > 0) parts.push(`<strong>${streak}</strong>-day streak`);
+  ];*/
+  //if (streak > 0) parts.push(`<strong>${streak}</strong>-day streak`);
+
+
+  const days = 14;
+  const today = new Date();
+  const parts = [`${days}-day average of satisfaction, energy and productivity:`];
+
+  const avgS = averageSatisfaction(14, today).toFixed(2);
+  const avgE = averageEnergy      (14, today).toFixed(2);
+  const avgP = averageProductivity(14, today).toFixed(2);
+
+  parts.push(avgS? `<strong>${avgS}</strong>` : 'N/A');
+  parts.push(avgE? `<strong>${avgE}</strong>` : 'N/A');
+  parts.push(avgP? `<strong>${avgP}</strong>` : 'N/A');
+
   if (!hasReviewFile()) parts.push('not saved to a file yet');
 
   bar.innerHTML = parts.map(p => `<span>${p}</span>`).join('');
