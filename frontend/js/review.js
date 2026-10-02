@@ -173,7 +173,7 @@ export function currentStreak(today = new Date()) {
  *
  * Either way 10/10/10 is white and 0/0/0 is black, as specified.
  */
-export const BLEND_MODE = 'linear';
+export const BLEND_MODE = 'screen';
 
 const clamp01 = x => Math.max(0, Math.min(1, x));
 

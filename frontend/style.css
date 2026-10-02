@@ -1316,6 +1316,7 @@ select:focus {
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  align-items: center;
 }
 
 /* -- column headers (sticky above the scroll area) ------------------- */
@@ -1326,7 +1327,7 @@ select:focus {
   gap: var(--review-gap);
   flex-shrink: 0;
   padding-bottom: var(--space-xs);
-  max-width: calc(var(--review-gutter) + 7 * var(--review-cell-max) + 8 * var(--review-gap));
+  width: calc(var(--review-gutter) + 7 * var(--review-cell-max) + 8 * var(--review-gap));
 }
 
 .review-head-label {
@@ -1346,6 +1347,7 @@ select:focus {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
+  /*justify-content: center;*/
 }
 
 .review-scroll::-webkit-scrollbar { display: none; }
@@ -1355,7 +1357,7 @@ select:focus {
   grid-template-columns: var(--review-gutter) repeat(7, minmax(0, 1fr));
   gap: var(--review-gap);
   align-content: start;
-  max-width: calc(var(--review-gutter) + 7 * var(--review-cell-max) + 8 * var(--review-gap));
+  width: calc(var(--review-gutter) + 7 * var(--review-cell-max) + 8 * var(--review-gap));
 }
 
 /* -- week number gutter ---------------------------------------------- */
