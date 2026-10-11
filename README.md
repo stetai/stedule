@@ -10,6 +10,8 @@ For example, you could use the OSS [Syncthing](https://syncthing.net/).
 
 ## Changelog
 
+- 261002, **v0.7.1-alpha**: Improved day review styling; improved review UX
+- 260918, **v0.7.0-alpha**: Added day review
 - 260902, **v0.6.1-alpha**: Added swipe navigation
 - 260827, **v0.6.0-alpha**: Added all-day functionality; fixed major drag-and-drop bugs
 - 260826, **v0.5.7-alpha**: Added drag-and-drop to web and Android

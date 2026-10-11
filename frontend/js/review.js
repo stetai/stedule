@@ -108,7 +108,7 @@ export function serializeReviews() {
 
   return [
     '{',
-    `  "version": ${REVIEW_FILE_VERSION},`,
+    //`  "version": ${REVIEW_FILE_VERSION},`,
     `  "scale": { "min": ${SCORE_MIN}, "max": ${SCORE_MAX} },`,
     `  "axes": ${JSON.stringify(AXIS_KEYS)},`,
     keys.length ? '  "days": {' : '  "days": {}',

@@ -9,7 +9,8 @@ export default {
   server: {
     hmr: {
       protocol: 'ws',
-      host: '192.168.0.102',
+      //host: '192.168.0.102', // Dortmund. In `tauri.conf.json: "devUrl": "http://192.168.0.102:5173",
+      host: '192.168.178.26', // Hamm
       port: 5173,
       clientPort: 5173,
     },
