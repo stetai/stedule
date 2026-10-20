@@ -2996,7 +2996,7 @@ function _commitRecurrenceSaveNow(fields, scope) {
         const masterOccEnd   = new Date(masterOccStart.getTime() + masterDuration);
  
         if (start.getTime() !== masterOccStart.getTime()) exception.start = start;
-        if (end.getTime()   !== masterOccEnd.getTime())   exception.end   = end;
+        if (exception.start || end.getTime() !== masterOccEnd.getTime()) exception.end = end;
  
         events[idx] = {
           ...master,
