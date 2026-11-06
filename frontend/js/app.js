@@ -1530,13 +1530,13 @@ function buildReviewSummary() {
   const today = new Date();
   const parts = [`${days}-day average of satisfaction, energy and productivity:`];
 
-  const avgS = averageSatisfaction(14, today).toFixed(2);
-  const avgE = averageEnergy      (14, today).toFixed(2);
-  const avgP = averageProductivity(14, today).toFixed(2);
+  // The averages are null when none of the last 14 days has a review
+  // (e.g. a new, empty file); null has no .toFixed().
+  const fmt = v => v === null ? 'N/A' : `<strong>${v.toFixed(2)}</strong>`;
 
-  parts.push(avgS? `<strong>${avgS}</strong>` : 'N/A');
-  parts.push(avgE? `<strong>${avgE}</strong>` : 'N/A');
-  parts.push(avgP? `<strong>${avgP}</strong>` : 'N/A');
+  parts.push(fmt(averageSatisfaction(14, today)));
+  parts.push(fmt(averageEnergy      (14, today)));
+  parts.push(fmt(averageProductivity(14, today)));
 
   if (!hasReviewFile()) parts.push('not saved to a file yet');
 
@@ -1698,7 +1698,8 @@ async function restoreReviewStorage() {
     }
     if (state === 'ready') return;
 
-    const savedReview = getSetting('reviewPath') ?? await getLocalSetting('reviewPath');
+    // Device-specific location: local settings only (see handleOpenReviewFile).
+    const savedReview = await getLocalSetting('reviewPath');
     await restoreReviewFile(savedReview, false);
   } catch (err) {
     console.warn('Could not restore review storage:', err);
@@ -1795,10 +1796,9 @@ async function handleOpenReviewFile() {
     const id = await openReviewFile();
     if (!id) return;
 
-    await setPersistentSetting('reviewPath', id);
-
-    const settingsPath = _isTauri ? await getLocalSetting('settingsPath') : null;
-    if (settingsPath) await saveSyncedSettings(settingsPath);
+    // A path/URI only exists on this device, so it must not go into the synced
+    // settings file (setPersistentSetting would write it there too).
+    await saveLocalSetting('reviewPath', id);
 
     await loadReviewData();
     _updatePathDisplay($('setting-review-path'), getReviewLocation());
