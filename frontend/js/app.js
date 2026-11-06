@@ -26,6 +26,7 @@ import {
   hasFileOpen,
   hasReviewFile,
   isFirefox,
+  lastBackupFailed,
   listIcsInFolder,
   openFile,
   openFileByPath,
@@ -37,6 +38,8 @@ import {
   restoreFileFromHandle,
   restoreFolder,
   restoreReviewFile,
+  setBackupStartHook,
+  takeBackupReport,
   writeFile,
   writeReview
 } from './storage.js';
@@ -219,6 +222,8 @@ if (window.__TAURI__) {
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
+  setBackupStartHook(() => setStatus('Creating backup…', 'saving'));
+
   $('btn-open').addEventListener('click', handleOpenFile);
   $('btn-settings').addEventListener('click', openSettingsModal);
   $('btn-prev').addEventListener('click', () => navigate(-1));
@@ -234,29 +239,7 @@ async function init() {
   // Settings
   $('settings-cancel').addEventListener('click', confirmCloseSettings)
 
-  $('settings-save').addEventListener('click', async () => {
-    if (_isTauri) {
-      const settingsPath = await getLocalSetting('settingsPath');
-      if (!settingsPath) {// No settings file loaded
-        closeSettings();
-        setStatus('No settings file loaded. Open a .json file in Settings first.', 'error');
-        return;   //exit before saving or claiming success
-      }
-
-      const selectedTheme = document.querySelector('input[name="theme"]:checked')?.value;
-      if (selectedTheme) setSetting('theme', selectedTheme);
-
-      await saveSyncedSettings(settingsPath);
-      setStatus('Settings saved.', 'saved');
-    } else {
-      // Browser: settings are in-memory only (no sync file)
-      const selectedTheme = document.querySelector('input[name="theme"]:checked')?.value;
-      if (selectedTheme) setSetting('theme', selectedTheme);
-      setStatus('Settings saved (in-memory only).', 'saved');
-    }
-
-    closeSettings();
-  });
+  $('settings-save').addEventListener('click', handleSaveSettings);
 
   $('setting-settings-add').addEventListener('click', async () => {
     await handleOpenSettings();
@@ -449,7 +432,7 @@ async function init() {
         const raw = await openFileByPath(icsPath);
         events = parseICS(raw);
         renderCalendar();
-        setStatus(`Loaded: ${getFileName()} — ${events.length} event(s)`, 'saved');
+        setStatus(`Loaded ${getFileName()}: ${events.length} event(s)`, 'saved');
       } catch {
         setStatus('Calendar file unavailable. Please re-open manually.', 'error');
       }
@@ -462,7 +445,7 @@ async function init() {
       if (raw) {
         events = parseICS(raw);
         renderCalendar();
-        setStatus(`Loaded: ${getFileName()} — ${events.length} event(s)`, 'saved');
+        setStatus(`Loaded ${getFileName()}: ${events.length} event(s)`, 'saved');
       } else if (getFileName()) {
         setStatus(`${getFileName()} needs permission — press Open to continue.`);
       }
@@ -500,7 +483,7 @@ async function handleOpenSettings() {
     await saveLocalSetting('settingsPath', settingsPath); // persist path locally
 
     _updateSettingsPathDisplay(settingsPath);
-    setStatus("Loaded: Settings", 'saved');
+    setStatus("Loaded settings", 'saved');
 
   } catch (err) {
     if (err.name === 'AbortError') return;
@@ -545,6 +528,45 @@ async function confirmCloseSettings() {
   closeSettings();
 }
 
+/**
+ * Settings "Save". On success the dialog closes; on failure it stays open, so
+ * the choices are not lost and the user can retry.
+ */
+async function handleSaveSettings() {
+  const btn = $('settings-save');
+  if (btn.disabled) return;           // a backup can make the save take a while
+  const selectedTheme = document.querySelector('input[name="theme"]:checked')?.value;
+
+  if (!_isTauri) {
+    // Browser: settings are in-memory only (no sync file)
+    if (selectedTheme) setSetting('theme', selectedTheme);
+    closeSettings();
+    setStatus('Settings saved (in-memory only).', 'saved');
+    return;
+  }
+
+  btn.disabled = true;
+  try {
+    const settingsPath = await getLocalSetting('settingsPath');
+    if (!settingsPath) {
+      showError('No settings file loaded. Open a settings .json file here first.');
+      return;                         // nothing was saved, so claim nothing
+    }
+
+    if (selectedTheme) setSetting('theme', selectedTheme);
+    await saveSyncedSettings(settingsPath);
+    closeSettings();
+    setSaveStatus('Settings saved.');
+  } catch (err) {
+    console.error('Settings save failed:', err);
+    const message = `Could not save settings: ${err?.message ?? String(err)}`;
+    setSaveStatus(message, 'error');
+    showError(message);               // the status bar is dimmed behind the open dialog
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function closeSettings() {
   if (document.activeElement && elSettingsOverlay.contains(document.activeElement)) {
     document.activeElement.blur();
@@ -578,7 +600,7 @@ async function handleOpenFile() {
     }
 
     const saveNote = !isFirefox()  ? '' : ' · Firefox: saves will download a new file';
-    setStatus(`Loaded: ${getFileName()} — ${events.length} event(s)${saveNote}`, 'saved');
+    setSaveStatus(`Loaded ${getFileName()}: ${events.length} event(s)${saveNote}`);
 
     refreshNotifs(events);
 
@@ -595,10 +617,10 @@ async function save() {
   setStatus('Saving…', 'saving');
   try {
     await writeFile(serializeICS(events));
-    setStatus(`Saved: ${getFileName()}`, 'saved');
+    setSaveStatus(`Saved: ${getFileName()}`);
   } catch (err) {
     console.error('Save failed:', err);
-    setStatus(`Save failed: ${err?.message ?? String(err)}`, 'error');
+    setSaveStatus(`Save failed: ${err?.message ?? String(err)}`, 'error');
   }
 }
 
@@ -1724,10 +1746,10 @@ async function persistReviews() {
 
   try {
     await writeReview(serializeReviews());
-    setStatus('Review saved.', 'saved');
+    setSaveStatus('Review saved.');
   } catch (err) {
     console.error('Review save failed:', err);
-    setStatus(`Could not save review: ${err?.message ?? String(err)}`, 'error');
+    setSaveStatus(`Could not save review: ${err?.message ?? String(err)}`, 'error');
   }
 }
 
@@ -1783,7 +1805,7 @@ async function handleChooseFolder() {
 
     await loadReviewData();
     _updatePathDisplay($('setting-review-path'), getReviewLocation());
-    setStatus(`Data folder: ${getFolderName()}`, 'saved');
+    setSaveStatus(`Data folder: ${getFolderName()}`);
 
   } catch (err) {
     if (err.name === 'AbortError') return;
@@ -3028,20 +3050,62 @@ function _commitRecurrenceSaveNow(fields, scope) {
 
 let _statusTimer = null;
 
+const BACKUP_FAILED_NOTE = 'Backup failed. Create one manually.';
+
 function setStatus(message, type = '') {
+  // Always cancel a pending auto-clear, or an earlier 'saved' timer could wipe
+  // a newer message (e.g. 'Creating backup…') while it is still relevant.
+  clearTimeout(_statusTimer);
   elStatus.textContent  = message;
+  elStatus.title        = message;   // full text on hover when the bar truncates
   elStatus.className    = `status-bar ${type}`;
 
-  // Auto-clear 'saving'/'saved' messages after 3s
+  // Auto-clear 'saved' messages after 3s. 'warning' and 'error' stay put.
   if (type === 'saved') {
-    clearTimeout(_statusTimer);
     _statusTimer = setTimeout(() => {
       elStatus.textContent = hasFileOpen()
         ? `File: ${getFileName()}`
         : 'No file open.';
       elStatus.className = 'status-bar';
+      elStatus.title     = '';
     }, 3000);
   }
+}
+
+/**
+ * setStatus() for a message that follows a save. Appends what the backup
+ * that ran before the save did, as separate segments:
+ *   failure  -> "Backup failed (…). Create one manually."   ('warning')
+ *   success  -> "Backups created (n)." / "Backups up to date."
+ *   skipped  -> "Not backed up: name (reason), … Older backups kept."  ('warning')
+ * 'warning' does not auto-clear, so a problem is not missed. An 'error'
+ * from the save itself stays an 'error'.
+ */
+function setSaveStatus(message, type = 'saved') {
+  const report = takeBackupReport();
+  const notes  = [];
+  let   level  = type;
+  const warn   = () => { if (level === 'saved') level = 'warning'; };
+
+  if (lastBackupFailed()) {
+    const names = report?.failed ?? [];
+    notes.push(names.length
+      ? `Backup failed (${names.join(', ')}). Create one manually.`
+      : BACKUP_FAILED_NOTE);
+    warn();
+  } else if (report) {
+    const n = report.created.length;
+    if (n) notes.push(`Backups created (${n} file${n === 1 ? '' : 's'}).`);
+    else if (report.unchanged.length) notes.push('Backups up to date.');
+  }
+
+  if (report?.skipped.length) {
+    const list = report.skipped.map(s => `${s.name} (${s.reason})`).join(', ');
+    notes.push(`Not backed up: ${list}. Older backup${report.skipped.length === 1 ? '' : 's'} kept.`);
+    warn();
+  }
+
+  setStatus([message, ...notes].join(' • '), level);
 }
 
 // ============================================================

@@ -447,6 +447,10 @@ export async function listIcsInFolder() {
 // valid JSON / does not look like an .ics, or has shrunk to under a fifth of
 // the existing backup (the "blank file replaced the real one" case).
 //
+// Each run produces a BackupReport (created / unchanged / skipped / failed),
+// which the UI picks up once with takeBackupReport(). lastBackupFailed() stays
+// true until a later check finds the backup current.
+//
 // Limits: needs a data folder (no siblings are addressable otherwise); files
 // are found by extension (BACKUP_EXTENSIONS); text files only.
 
@@ -473,11 +477,12 @@ function _isBackupCandidate(name) {
     && !name.includes('.sync-conflict-');
 }
 
-function _looksValid(name, text) {
-  if (!text.trim()) return false;
-  if (/\.json$/i.test(name)) { try { JSON.parse(text); } catch { return false; } }
-  if (/\.ics$/i.test(name))  return /BEGIN:VCALENDAR/i.test(text);
-  return true;
+/** Why `text` must not replace the backup of `name`, or null when it may. */
+function _skipReason(name, text) {
+  if (!text.trim()) return 'empty';
+  if (/\.json$/i.test(name)) { try { JSON.parse(text); } catch { return 'not valid JSON'; } }
+  if (/\.ics$/i.test(name) && !/BEGIN:VCALENDAR/i.test(text)) return 'not a calendar file';
+  return null;
 }
 
 const _localDay = d =>
@@ -504,18 +509,26 @@ async function _listInFolder(exts) {
   return [...out];
 }
 
+/**
+ * Backs up one file. Throws when reading or writing fails.
+ * @returns {Promise<{status: 'created'|'unchanged'|'missing'}
+ *                  |{status: 'skipped', reason: string}>}
+ */
 async function _backupOne(name) {
   const text = await readInFolder(name);
-  if (text === null || !_looksValid(name, text)) return;     // keep the older backup
+  if (text === null) return { status: 'missing' };            // e.g. no review.json yet
+
+  const reason = _skipReason(name, text);
+  if (reason) return { status: 'skipped', reason };            // keep the older backup
 
   const bakName = _backupName(name);
   const old = await readInFolder(bakName);
-  if (old === text) return;                                  // nothing new
+  if (old === text) return { status: 'unchanged' };
   if (old && old.length > 200 && text.length < old.length * 0.2) {
-    console.warn(`Backup of ${name} skipped: it is far smaller than the existing backup.`);
-    return;
+    return { status: 'skipped', reason: 'far smaller than its backup' };
   }
   await writeInFolder(bakName, text);
+  return { status: 'created' };
 }
 
 /** Due when more than BACKUP_EVERY_DAYS days have passed since the midnight of the last backup day. */
@@ -531,35 +544,85 @@ async function _backupDue() {
   return new Date() > dueAfter;
 }
 
-let _backupRun = null;
+let _backupRun    = null;
+let _backupFailed = false;   // sticky until a later check finds the backup current
+let _backupReport = null;    // last run's report, until the UI takes it
+
+/**
+ * @typedef {object} BackupReport
+ * @property {string[]} created    copied to their .bak file
+ * @property {string[]} unchanged  their .bak file already matched
+ * @property {{name: string, reason: string}[]} skipped
+ *                                 deliberately not backed up; the older .bak is kept
+ * @property {string[]} failed     reading or writing threw
+ * @property {boolean}  aborted    the run itself failed (folder unreadable, tracker not written)
+ */
+
+// Lets app.js show progress without storage.js touching the DOM.
+let _onBackupStart = null;
+export function setBackupStartHook(fn) { _onBackupStart = fn; }
+
+/**
+ * True when the most recent backup check ended in a failed backup.
+ * Read it after a save has resolved: every save awaits backupIfDue() first.
+ */
+export function lastBackupFailed() { return _backupFailed; }
+
+/**
+ * The BackupReport of the most recent run, returned once; null when no backup
+ * has run since the last call (most saves: a backup is only due every
+ * BACKUP_EVERY_DAYS days).
+ */
+export function takeBackupReport() {
+  const report = _backupReport;
+  _backupReport = null;
+  return report;
+}
 
 /**
  * Runs the backup if one is due. Never throws and never blocks a save for
- * long: concurrent callers share one run, and any failure is only logged.
+ * long: concurrent callers share one run. The outcome is reported through
+ * lastBackupFailed() and takeBackupReport().
  */
 export function backupIfDue() {
-  if (!hasFolderOpen()) return Promise.resolve();
+  if (!hasFolderOpen()) { _backupFailed = false; return Promise.resolve(); }
   if (_backupRun) return _backupRun;
 
   _backupRun = (async () => {
+    const report = { created: [], unchanged: [], skipped: [], failed: [], aborted: false };
     try {
-      if (!await _backupDue()) return;
+      if (!await _backupDue()) { _backupFailed = false; return; }
+      try { _onBackupStart?.(); } catch { /* a UI problem must never stop a backup */ }
 
-      let failed = false;
       for (const name of (await _listInFolder(BACKUP_EXTENSIONS)).filter(_isBackupCandidate)) {
-        try { await _backupOne(name); }
-        catch (err) { failed = true; console.warn(`Backup of ${name} failed:`, err); }
+        try {
+          const result = await _backupOne(name);
+          if (result.status === 'skipped') {
+            report.skipped.push({ name, reason: result.reason });
+            console.warn(`Backup of ${name} skipped: ${result.reason}. The older backup was kept.`);
+          } else if (result.status !== 'missing') {
+            report[result.status].push(name);
+          }
+        } catch (err) {
+          report.failed.push(name);
+          console.warn(`Backup of ${name} failed:`, err);
+        }
       }
 
       // Tracker last: after a failure it keeps its old date, so the next save retries.
-      if (!failed) {
+      if (!report.failed.length) {
         await writeInFolder(BACKUP_TRACKER, JSON.stringify({ date: _localDay(new Date()) }, null, 2) + '\n');
       }
     } catch (err) {
+      report.aborted = true;
       console.warn('Backup failed:', err);
     } finally {
       _backupRun = null;
     }
+
+    // Reached only when a backup was due (the not-due path returned above).
+    _backupFailed = report.aborted || report.failed.length > 0;
+    _backupReport = report;
   })();
   return _backupRun;
 }

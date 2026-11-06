@@ -770,6 +770,7 @@ select:focus {
 
 .status-bar.saving { color: var(--color-accent); }
 .status-bar.saved  { color: #2e7d32; }
+.status-bar.warning { color: var(--color-danger); }   /* saved, but the backup failed */
 .status-bar.error  { 
   color: var(--color-text); 
   background-color: var(--color-danger)
