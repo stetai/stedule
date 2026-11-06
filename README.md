@@ -10,6 +10,7 @@ For example, you could use the OSS [Syncthing](https://syncthing.net/).
 
 ## Changelog
 
+- 261106, **v0.8.0-alpha**: Create automatic backup every 2 days
 - 261002, **v0.7.1-alpha**: Improved day review styling; improved review UX
 - 260918, **v0.7.0-alpha**: Added day review
 - 260902, **v0.6.1-alpha**: Added swipe navigation

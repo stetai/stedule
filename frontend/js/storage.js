@@ -467,7 +467,7 @@ const _isBackupName = n => /\.bak\.[^.]+$/i.test(n);
 /** main.ics -> main.bak.ics */
 function _backupName(name) {
   const i = name.lastIndexOf('.');
-  return `${name.slice(0, i)}.bak${name.slice(i)}`;
+  return `.${name.slice(0, i)}.bak${name.slice(i)}`;
 }
 
 function _isBackupCandidate(name) {
