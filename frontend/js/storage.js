@@ -29,7 +29,7 @@
  *                   writes fall back to a download.
  */
 
-import { clearHandle, loadHandle, saveHandle } from './settings.js';
+import { clearHandle, loadHandle, saveHandle, setBeforeSaveHook } from './settings.js';
 
 // -- imports -------------------------------------------------
 
@@ -201,6 +201,7 @@ export async function reloadFile() {
  */
 export async function writeFile(content) {
   if (!_fileName) throw new Error('No file is open. Call openFile() first.');
+  await backupIfDue();   // before the write, so the backup holds the previous content
 
   if (_isTauri) {
     const { writeTextFile } = await _getTauriFs();
@@ -414,20 +415,156 @@ export async function pickIcsInFolder(name) {
 export async function listIcsInFolder() {
   if (_isTauri && _folderPath) {
     const { invoke } = window.__TAURI__.core;
-    try { return await invoke('list_folder', { folder: _folderPath, ext: 'ics' }); }
+    try { return (await invoke('list_folder', { folder: _folderPath, ext: 'ics' })).filter(n => !_isBackupName(n)); }
     catch { return []; }
   }
 
   if (_folderHandle) {
     const out = [];
     for await (const [name, entry] of _folderHandle.entries()) {
-      if (entry.kind === 'file' && name.toLowerCase().endsWith('.ics')) out.push(name);
+      if (entry.kind === 'file' && name.toLowerCase().endsWith('.ics') && !_isBackupName(name)) out.push(name);
     }
     return out.sort();
   }
 
   return [];
 }
+
+// ============================================================
+// BACKUPS  (data-folder mode only)
+// ============================================================
+//
+// Every BACKUP_EVERY_DAYS days, on the first save, each text file in the data
+// folder is copied to <name>.bak.<ext> (main.ics -> main.bak.ics), overwriting
+// the previous copy. bak.json remembers the day of the last run:
+//   { "date": "2026-11-06" }
+//
+// The check runs BEFORE the save that triggers it (writeFile, writeReview,
+// saveSyncedSettings), so the backup holds that file's previous content. A
+// backup made after a bad save would only preserve the damage.
+//
+// Backups are skipped, keeping the older copy, when a file is empty, is not
+// valid JSON / does not look like an .ics, or has shrunk to under a fifth of
+// the existing backup (the "blank file replaced the real one" case).
+//
+// Limits: needs a data folder (no siblings are addressable otherwise); files
+// are found by extension (BACKUP_EXTENSIONS); text files only.
+
+export const BACKUP_TRACKER = 'bak.json';
+const BACKUP_EXTENSIONS = [
+  'ics', 
+  'json',
+  // add a type here for a new kind of file
+];   
+const BACKUP_EVERY_DAYS = 2;
+
+const _isBackupName = n => /\.bak\.[^.]+$/i.test(n);
+
+/** main.ics -> main.bak.ics */
+function _backupName(name) {
+  const i = name.lastIndexOf('.');
+  return `${name.slice(0, i)}.bak${name.slice(i)}`;
+}
+
+function _isBackupCandidate(name) {
+  return name !== BACKUP_TRACKER
+    && !name.startsWith('.')
+    && !_isBackupName(name)
+    && !name.includes('.sync-conflict-');
+}
+
+function _looksValid(name, text) {
+  if (!text.trim()) return false;
+  if (/\.json$/i.test(name)) { try { JSON.parse(text); } catch { return false; } }
+  if (/\.ics$/i.test(name))  return /BEGIN:VCALENDAR/i.test(text);
+  return true;
+}
+
+const _localDay = d =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/** File names in the open folder with one of the given extensions. */
+async function _listInFolder(exts) {
+  const out = new Set();
+
+  if (_isTauri && _folderPath) {
+    const { invoke } = window.__TAURI__.core;
+    for (const ext of exts) {
+      try { for (const n of await invoke('list_folder', { folder: _folderPath, ext })) out.add(n); }
+      catch { /* list_folder unavailable for this extension: the known names below still apply */ }
+    }
+  } else if (_folderHandle) {
+    for await (const [name, entry] of _folderHandle.entries()) {
+      if (entry.kind === 'file' && exts.some(e => name.toLowerCase().endsWith('.' + e))) out.add(name);
+    }
+  }
+
+  out.add(REVIEW_FILENAME);
+  if (_fileName) out.add(_fileName);
+  return [...out];
+}
+
+async function _backupOne(name) {
+  const text = await readInFolder(name);
+  if (text === null || !_looksValid(name, text)) return;     // keep the older backup
+
+  const bakName = _backupName(name);
+  const old = await readInFolder(bakName);
+  if (old === text) return;                                  // nothing new
+  if (old && old.length > 200 && text.length < old.length * 0.2) {
+    console.warn(`Backup of ${name} skipped: it is far smaller than the existing backup.`);
+    return;
+  }
+  await writeInFolder(bakName, text);
+}
+
+/** Due when more than BACKUP_EVERY_DAYS days have passed since the midnight of the last backup day. */
+async function _backupDue() {
+  let last = null;
+  try { last = JSON.parse(await readInFolder(BACKUP_TRACKER))?.date; } catch { /* treat as never */ }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(last ?? '')) return true;
+
+  // Calendar arithmetic (setDate), not "48 * 3600 * 1000 ms": that would drift
+  // by an hour across a DST change.
+  const dueAfter = new Date(`${last}T00:00:00`);
+  dueAfter.setDate(dueAfter.getDate() + BACKUP_EVERY_DAYS);
+  return new Date() > dueAfter;
+}
+
+let _backupRun = null;
+
+/**
+ * Runs the backup if one is due. Never throws and never blocks a save for
+ * long: concurrent callers share one run, and any failure is only logged.
+ */
+export function backupIfDue() {
+  if (!hasFolderOpen()) return Promise.resolve();
+  if (_backupRun) return _backupRun;
+
+  _backupRun = (async () => {
+    try {
+      if (!await _backupDue()) return;
+
+      let failed = false;
+      for (const name of (await _listInFolder(BACKUP_EXTENSIONS)).filter(_isBackupCandidate)) {
+        try { await _backupOne(name); }
+        catch (err) { failed = true; console.warn(`Backup of ${name} failed:`, err); }
+      }
+
+      // Tracker last: after a failure it keeps its old date, so the next save retries.
+      if (!failed) {
+        await writeInFolder(BACKUP_TRACKER, JSON.stringify({ date: _localDay(new Date()) }, null, 2) + '\n');
+      }
+    } catch (err) {
+      console.warn('Backup failed:', err);
+    } finally {
+      _backupRun = null;
+    }
+  })();
+  return _backupRun;
+}
+
+setBeforeSaveHook(backupIfDue);   // settings.js: back up before the settings file is saved
 
 // ============================================================
 // REVIEW FILE
@@ -475,6 +612,7 @@ export async function readReview() {
 
 /** Writes review.json to whichever location readReview() resolved. */
 export async function writeReview(content) {
+  await backupIfDue();   // before the write, so the backup holds the previous content
   if (hasFolderOpen()) return writeInFolder(REVIEW_FILENAME, content);
 
   if (_isTauri) {

@@ -165,11 +165,17 @@ export async function loadSyncedSettings(settingsPath) {
   // _localOverrides = (await getLocalSetting('overrides')) ?? {};
 }
 
+// Lets storage.js run its backup check before every settings save, without
+// settings.js having to import storage.js (which already imports this file).
+let _beforeSave = null;
+export function setBeforeSaveHook(fn) { _beforeSave = fn; }
+
 /**
  * Writes the current synced settings to disk.
  * @param {string} settingsPath
  */
 export async function saveSyncedSettings(settingsPath) {
+  try { await _beforeSave?.(); } catch { /* a backup problem must never block a save */ }
   const { writeTextFile } = await _getTauriFs();
   await writeTextFile(
     settingsPath,
