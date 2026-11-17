@@ -403,62 +403,21 @@ export function eventsOnDay(events, date) {
       continue;
     }
 
-    // Scan all exceptions for ones whose resolved start falls on this day.
+    // Recurring: every occurrence whose time span overlaps this day
+    // Occurrences an exception gave a new start.
     if (ev.exceptions) {
       for (const [originalKey, exception] of Object.entries(ev.exceptions)) {
-        if (exception.deleted) continue;
-        if (!exception.start) continue; 
-
-        if (originalKey === toDateInputValue(date)) continue;
- 
-        const resolvedStart = new Date(exception.start);
-        if (!isSameDay(resolvedStart, date)) continue;
-
-        const originalDate = new Date(originalKey + 'T00:00:00');
-        const occurrence = materializeOccurrence(ev, originalDate);
-        if (occurrence) result.push(occurrence);
+        if (exception.deleted || !exception.start) continue;
+        const occurrence = materializeOccurrence(ev, new Date(originalKey + 'T00:00:00'));
+        if (occurrence && overlapsDay(occurrence, dayStart, dayEnd)) result.push(occurrence);
       }
     }
-
-    // rrule occurrence on this day
-    const dateKey = toDateInputValue(date);
-    const exceptionOnThisDay = ev.exceptions?.[dateKey];
- 
-    if (exceptionOnThisDay) {
-      if (exceptionOnThisDay.deleted) continue;
- 
-      if (exceptionOnThisDay.start &&
-          !isSameDay(new Date(exceptionOnThisDay.start), date)) continue;
- 
-      // Time-only shift (same day): materialize normally.
-      const occurrence = materializeOccurrence(ev, date);
-      if (occurrence) result.push(occurrence);
-      continue;
-    }
-
-    // No exception entry for this day — check the plain RRULE.
-    const occurrenceStart = recursOnDay(ev, date);
-    if (occurrenceStart) {
-      const occurrence = materializeOccurrence(ev, occurrenceStart);
-      if (occurrence) result.push(occurrence);
-    }
-
-    const duration = (ev.end ?? ev.start) - ev.start; // TODO: even default duration should be displayed correctly
-    if (duration > 0) {
-      const daysBack = Math.ceil(duration / (24 * 60 * 60 * 1000));
-      for (let i = 1; i <= daysBack; i++) {
-        const priorDay = new Date(date);
-        priorDay.setDate(priorDay.getDate() - i);
-
-        const priorStart = recursOnDay(ev, priorDay);
-        if (!priorStart) continue;
-        if (occurrenceStart && isSameDay(priorStart, occurrenceStart)) continue; // avoid double-push
-
-        const occurrence = materializeOccurrence(ev, priorStart);
-        if (occurrence && occurrence.end > dayStart && occurrence.start < dayEnd) {
-          result.push(occurrence);
-        }
-      }
+    // Rule occurrences that start early enough to reach into this day. 
+    const lookBackMs = longestSpan(ev) + 60 * 60 * 1000;
+    for (const start of ruleStartsBetween(ev, new Date(dayStart.getTime() - lookBackMs), dayEnd)) {
+      if (ev.exceptions?.[toDateInputValue(start)]?.start) continue;
+      const occurrence = materializeOccurrence(ev, start);
+      if (occurrence && overlapsDay(occurrence, dayStart, dayEnd)) result.push(occurrence);
     }
   }
 
@@ -596,40 +555,44 @@ export function parseRRule(rruleStr) {
 // PRIVATE HELPERS
 // ============================================================
 
-function recursOnDay(ev, date) {
-  const rule = ICAL.Recur.fromString(ev.rrule);
-  const startTime = ICAL.Time.fromJSDate(ev.start);
-
-  const iter = rule.iterator(startTime);
-  //iter.advanceTo(ICAL.Time.fromJSDate(startOfDay(date))); // TODO: investigate how to make this work
-
-  const dayStart = ICAL.Time.fromJSDate(startOfDay(date));
-  const dayEnd = ICAL.Time.fromJSDate(endOfDay(date));
+/**
+ * Start times the RRULE produces in [from, to], minus EXDATEs and deleted
+ * occurrences. Exceptions are applied afterwards by materializeOccurrence().
+ */
+function ruleStartsBetween(ev, from, to) {
+  const iter   = ICAL.Recur.fromString(ev.rrule).iterator(ICAL.Time.fromJSDate(ev.start));
+  const icFrom = ICAL.Time.fromJSDate(from);
+  const icTo   = ICAL.Time.fromJSDate(to);
+  const starts = [];
 
   let next;
-
   while ((next = iter.next())) {
+    if (next.compare(icTo) > 0) break;
+    if (next.compare(icFrom) < 0) continue;
 
-    if (next.compare(dayEnd) > 0) break;
-
-    if (next.compare(dayStart) >= 0 && next.compare(dayEnd) <= 0) {
-
-      const jsStart = next.toJSDate();
-
-      if (ev.exdates?.some(d => isSameDay(d, jsStart))) continue;
-
-      const originalDate = toDateInputValue(jsStart);
-      const exception = ev.exceptions?.[originalDate];
-      if (exception?.deleted) continue;
-
-      // exception moved to another day
-      if (exception?.start && !isSameDay(new Date(exception.start), jsStart)) continue;
-
-      return jsStart;
-    }
+    const jsStart = next.toJSDate();
+    if (ev.exdates?.some(d => isSameDay(d, jsStart))) continue;
+    if (ev.exceptions?.[toDateInputValue(jsStart)]?.deleted) continue;
+    starts.push(jsStart);
   }
+  return starts;
+}
 
-  return false;
+/** Longest duration (ms) of any occurrence: the master's or an exception's. */
+function longestSpan(ev) {
+  let span = (ev.end ?? ev.start) - ev.start;
+  for (const [key, exception] of Object.entries(ev.exceptions ?? {})) {
+    if (exception.deleted) continue;
+    const occ = materializeOccurrence(ev, new Date(key + 'T00:00:00'));
+    if (occ) span = Math.max(span, occ.end - occ.start);
+  }
+  return Math.max(span, 0);
+}
+
+/** True if [start, end) touches the day. A zero-length occurrence counts at its start. */
+function overlapsDay(occ, dayStart, dayEnd) {
+  const end = occ.end > occ.start ? occ.end : new Date(occ.start.getTime() + 1);
+  return occ.start <= dayEnd && end > dayStart;
 }
 
 function materializeOccurrence(ev, date) {
