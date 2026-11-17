@@ -1000,7 +1000,10 @@ function navigate(direction) {
 function slideToWeek(direction) {
   if (trackBusy || !weekTrackEl) return;
   trackBusy = true;
-  if (weekScrollEl) _savedScrollTop = weekScrollEl.scrollTop;
+  if (weekScrollEl) {
+    _savedScrollTop = weekScrollEl.scrollTop;
+    syncScrollAcrossPanes(weekScrollEl);
+  }
   settleTrack(direction);
 }
 
@@ -1017,9 +1020,9 @@ function bindWeekSwipeGestures(viewport) {
 function onWeekSwipeStart(e) {
   if (trackBusy) return;
   if (e.pointerType === 'mouse' && e.button !== 0) return;
-  // Let existing gestures keep owning their own targets.
-  if (e.target.closest('.week-event, .allday-chip, .week-event-outline, .week-event-resize')) return;
-  if (chipDrag || moving || resizing) return;
+  // The draft outline and resize handle keep their own gestures; events don't.
+  if (e.target.closest('.week-event-outline, .week-event-resize')) return;
+  if (chipDrag?.active || moving || resizing) return;
 
   weekDrag = {
     pointerId: e.pointerId,
@@ -1042,9 +1045,16 @@ function onWeekSwipeMove(e) {
   const dy = e.clientY - weekDrag.startY;
 
   if (weekDrag.locked === null) {
+    if (chipDrag?.active) { teardownWeekSwipe(); return; }   // the chip is being dragged: not a swipe
     if (Math.abs(dx) < SWIPE_LOCK_PX && Math.abs(dy) < SWIPE_LOCK_PX) return;
     weekDrag.locked = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
     if (weekDrag.locked === 'y') { teardownWeekSwipe(); return; } // it's a vertical scroll
+
+    if (chipDrag && !chipDrag.active) cancelPendingChipDrag();  // a swipe, not a long-press
+    if (weekScrollEl) {
+      _savedScrollTop = weekScrollEl.scrollTop;   // restored by finishWeekChange()
+      syncScrollAcrossPanes(weekScrollEl);        // neighbours show the same hours while dragging
+    }
 
     trackBusy = true;
     weekTrackEl.classList.add('dragging');
@@ -1097,10 +1107,9 @@ function teardownWeekSwipe() {
 }
 
 function swallowNextClick() {
-  document.addEventListener('click', (e) => {
-    e.stopPropagation();
-    e.preventDefault();
-  }, { capture: true, once: true });
+  const swallow = (e) => { e.stopPropagation(); e.preventDefault(); };
+  document.addEventListener('click', swallow, { capture: true, once: true });
+  setTimeout(() => document.removeEventListener('click', swallow, { capture: true }), 400);
 }
 
 function mountWeekSwipe() {
@@ -1151,6 +1160,7 @@ function settleTrack(direction) {
 }
 
 function cancelSwipe() {
+  _savedScrollTop = null;
   weekTrackEl.classList.remove('dragging');
   weekTrackEl.classList.add('settling');
   weekTrackEl.style.transform = 'translateX(-33.3333%)';
