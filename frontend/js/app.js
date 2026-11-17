@@ -806,7 +806,9 @@ function buildWeekPane(baseDate) {
 
   const scroll = document.createElement('div');
   scroll.className = 'week-scroll';
-  scroll.addEventListener('scroll', () => syncScrollAcrossPanes(scroll));
+  scroll.addEventListener('scroll', () => {// Only the visible pane leads
+    if (scroll === weekScrollEl) syncScrollAcrossPanes(scroll);
+  });
 
   const body = document.createElement('div');
   body.className = 'week-body';
