@@ -2393,7 +2393,7 @@ function onChipDragEnd(e) {
 
   try { chip.releasePointerCapture(e.pointerId); } catch { /* already released */ }
 
-  const cancelled = chip.classList.contains('will-cancel');
+  const cancelled = e.type === 'pointercancel' || chip.classList.contains('will-cancel');
 
   elDragDropZone.classList.remove('open');
   elDragCancelZone.classList.remove('armed');
