@@ -1061,7 +1061,7 @@ function onWeekSwipeMove(e) {
     trackBusy = true;
     weekTrackEl.classList.add('dragging');
     weekTrackEl.classList.remove('settling');
-    document.addEventListener('touchmove', blockTouchScroll, { passive: false });
+    document.addEventListener('touchmove', blockSwipeTouchScroll, { passive: false });
   }
 
   const now = performance.now();
@@ -1104,7 +1104,7 @@ function teardownWeekSwipe() {
   document.removeEventListener('pointermove', onWeekSwipeMove);
   document.removeEventListener('pointerup', onWeekSwipeEnd);
   document.removeEventListener('pointercancel', onWeekSwipeCancel);
-  document.removeEventListener('touchmove', blockTouchScroll);
+  document.removeEventListener('touchmove', blockSwipeTouchScroll);
   weekDrag = null;
 }
 
@@ -2219,6 +2219,10 @@ function removeActiveChipListeners() {
 }
 
 function blockTouchScroll(e) {
+  if (e.cancelable) e.preventDefault();
+}
+
+function blockSwipeTouchScroll(e) {
   if (e.cancelable) e.preventDefault();
 }
 
