@@ -688,9 +688,9 @@ function renderCalendar() {
   }
 }
 
-function renderWeekdayHeader(startDay = "Mon") { //todo: make flexible
+function renderWeekdayHeader(startDay = 0) { //0 = Mon, 1 = Tue, ... //todo: make flexible
   let days;
-  if (startDay === "Mon") {
+  if (startDay === 0) {
     days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   } else {
     days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
