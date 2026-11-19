@@ -727,7 +727,8 @@ function renderMonthView() {
   for (let d = 1; d <= lastDay.getDate(); d++) {
     const date      = new Date(year, month, d);
     const dayEvents = eventsOnDay(events, date);
-    elGrid.appendChild(createDayCell(date, dayEvents));
+    const displayEv = dayEvents.filter(ev => ev.categories === 'important' || ev.allDay === true)
+    elGrid.appendChild(createDayCell(date, displayEv));
   }
 }
 
@@ -2679,7 +2680,7 @@ function updateRepeatUI() {
   if (freq === "WEEKLY") {
     elRepeatWeekdays.style.display = 'flex';
 
-    const weekday = ["SU","MO","TU","WE","TH","FR","SA"][new Date(elStartDate.value).getDay()];
+    const weekday = ["SU","MO","TU","WE","TH","FR","SA"][new Date(elStartDate.value).getDay()]; // order is deliberate
 
     const cb = document.querySelector(`#repeat-weekdays input[value="${weekday}"]`);
     if (cb && !document.querySelector("#repeat-weekdays input:checked")) {
