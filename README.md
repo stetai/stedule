@@ -10,6 +10,7 @@ For example, you could use the OSS [Syncthing](https://syncthing.net/).
 
 ## Changelog
 
+- 261119, **v0.8.2-alpha**: Removed blue highlighting on every interaction
 - 261117, **v0.8.1-alpha**: Improved drag navigation responsiveness; improved scroll responsiveness; fixed visual bug in multi-day events of recurrent events; fixed minor backup bugs
 - 261106, **v0.8.0-alpha**: Introduce automatic backup every 2 days
 - 261002, **v0.7.1-alpha**: Improved day review styling; improved review UX
