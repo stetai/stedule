@@ -727,7 +727,7 @@ function renderMonthView() {
   for (let d = 1; d <= lastDay.getDate(); d++) {
     const date      = new Date(year, month, d);
     const dayEvents = eventsOnDay(events, date);
-    const displayEv = dayEvents.filter(ev => ev.categories === 'important' || ev.allDay === true)
+    const displayEv = dayEvents.filter(ev => ev.categories === 'important' || ev.allDay)
     elGrid.appendChild(createDayCell(date, displayEv));
   }
 }
@@ -1860,7 +1860,7 @@ function createDayCell(date, dayEvents = []) {
   }
 
   // Click to open "new event" modal for this day
-  cell.addEventListener('click', () => openNewEventModal(date));
+  cell.addEventListener('click', () => openNewEventModal(date, '', date, true));
 
   return cell;
 }
