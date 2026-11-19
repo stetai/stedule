@@ -713,15 +713,6 @@ export async function openReviewFile() {
     const { open: tauriOpen, save: tauriSave } = await _getTauriDialog();
     const isAndroid = navigator.userAgent.includes('Android');
     const filters = [{ name: 'JSON', extensions: ['json'] }];
-
-    /*
-    // Always OPEN first. On Android a save dialog (ACTION_CREATE_DOCUMENT) can
-    // never open an existing file: it creates a new, blank "review(1).json"
-    // beside it. Creating a file is therefore only offered on desktop, as the
-    // fallback after cancelling; on Android folder mode creates review.json.
-    let picked = await tauriOpen({ filters, multiple: false });
-    if (!picked && !isAndroid) picked = await tauriSave({ filters, defaultPath: REVIEW_FILENAME });
-    */
     
     let picked = isAndroid
       ? await tauriSave({ filters, defaultPath: REVIEW_FILENAME })
