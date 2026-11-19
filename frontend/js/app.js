@@ -1856,7 +1856,15 @@ function createDayCell(date, dayEvents = []) {
 
   // Event chips
   for (const ev of dayEvents) {
-    cell.appendChild(createEventChip(ev));
+    const chip = createEventChip(ev);
+    const chipStyle = getEventColorStyle(ev);
+
+    const endTime = new Date(ev.end);
+    endTime.setHours(23,59,59,999);
+
+    applyChipTiming(chip, endTime.getTime(), chipStyle.dismissed, chipStyle.baseColor);
+
+    cell.appendChild(chip);
   }
 
   // Click to open "new event" modal for this day
