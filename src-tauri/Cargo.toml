@@ -1,9 +1,9 @@
 [package]
 name = "Stedule"
-version = "0.8.2-alpha.2"
+version = "0.8.3-alpha.1"
 description = "A calendar application that saves its data in a local .ics file."
 authors = ["Steven Taing"]
-edition = "2021"
+edition = "2021" # Rust language edition
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
