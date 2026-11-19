@@ -1383,16 +1383,6 @@ function getWeekNumber(d) {
     return weekNo;
 }
 
-// --- Day view (scaffold) ---
-
-function renderDayView() {
-  // TODO: implement hourly time-grid layout
-  const dayEvents = eventsOnDay(events, currentDate);
-  const cell = createDayCell(currentDate, dayEvents);
-  cell.style.gridColumn = '1 / -1'; // span all 7 columns
-  elGrid.appendChild(cell);
-}
-
 // ############################################################
 // REVIEW VIEW
 // ############################################################
@@ -3584,8 +3574,8 @@ function updateNowIndicator() {
   document.querySelectorAll('.week-now-indicator').forEach(el => el.remove());
   document.querySelectorAll('.week-now-indicator-dot').forEach(el => el.remove());
 
-  // Only relevant in week/day view
-  if (currentView !== 'week' && currentView !== 'day') return;
+  // Only relevant in week
+  if (currentView !== 'week') return;
 
   const now = new Date();
   const todayCol = document.querySelector('.week-day-col.today');
