@@ -1330,6 +1330,7 @@ select:focus {
   flex-shrink: 0;
   padding-bottom: var(--space-xs);
   width: calc(var(--review-gutter) + 7 * var(--review-cell-max) + 8 * var(--review-gap));
+  max-width: 100%;   /* narrow phones: cells shrink instead of Sunday being clipped */
 }
 
 .review-head-label {
@@ -1349,6 +1350,7 @@ select:focus {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
+  max-width: 100%;   /* caps the shrink-to-fit width, so the grid's max-width can bite */
   /*justify-content: center;*/
 }
 
@@ -1360,6 +1362,7 @@ select:focus {
   gap: var(--review-gap);
   align-content: start;
   width: calc(var(--review-gutter) + 7 * var(--review-cell-max) + 8 * var(--review-gap));
+  max-width: 100%;
 }
 
 /* -- week number gutter ---------------------------------------------- */

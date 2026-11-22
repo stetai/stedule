@@ -47,6 +47,7 @@ import {
 import {
   AVERAGE_WINDOW_DAYS,
   AXES,
+  AXIS_KEYS,
   SCORE_MAX,
   SCORE_MIN,
   averageScores,
@@ -463,6 +464,8 @@ async function init() {
   await loadReviewData();
   await maybePromptYesterday();
 
+  if (_statusIdle) showIdleStatus();   // nothing to report: show which file is open
+
   updateNowIndicator();
   setInterval(updateNowIndicator, 5 * 1000);
   setInterval(refreshTimeSensitiveUI, 5 * 1000);
@@ -654,6 +657,8 @@ function switchView(view) {
   const paging = view !== 'review';
   $('btn-prev').style.display = paging ? '' : 'none';
   $('btn-next').style.display = paging ? '' : 'none';
+
+  if (_statusIdle) showIdleStatus();
 
   renderCalendar();
 }
@@ -1460,6 +1465,8 @@ function renderReviewView() {
     const label = document.createElement('div');
     label.className = 'review-week-label' + (monthStart ? ' month-start' : '');
     label.textContent = String(getWeekNumber(w));
+    // Shown in front of the week number on wide screens only (style.css).
+    if (monthStart) label.dataset.month = w.toLocaleDateString('default', { month: 'short' });
     label.title = `Week ${getWeekNumber(w)} · ${w.toLocaleDateString('default', { month: 'long', year: 'numeric' })}`;
     grid.appendChild(label);
 
@@ -1671,10 +1678,7 @@ async function toggleAxisVisibility(key) {
     ? visible.filter(k => k !== key)
     : [...visible, key];
 
-  if (!next.length) {
-    setStatus('At least one criterion has to stay visible.');
-    return;
-  }
+  if (!next.length) return;   // last visible axis: the button is shown as locked
 
   setVisibleAxes(next);
   applyReviewDisplayChange();
@@ -1774,9 +1778,10 @@ function readReviewSliders() {
 }
 
 function updateReviewPreview() {
-  // Same transform as the grid (hidden axes, greyscale), so the swatch shows
-  // exactly what the cell will look like after saving.
-  const hex = displayHex(readReviewSliders());
+  // All three axes always count here: the eye toggles are a way of *viewing*
+  // the grid and must not hide part of what is being entered. Greyscale still
+  // applies, so the swatch matches the grid's current mode.
+  const hex = displayHex(readReviewSliders(), { visible: AXIS_KEYS });
   elReviewSwatch.style.background = hex;
   elReviewHint.textContent = hex.toUpperCase();
 }
@@ -3207,6 +3212,7 @@ function _commitRecurrenceSaveNow(fields, scope) {
 // ============================================================
 
 let _statusTimer = null;
+let _statusIdle  = true;   // true while the bar only shows the idle "File: …" line
 
 const BACKUP_FAILED_NOTE = 'Backup failed. Create one manually.';
 
@@ -3218,16 +3224,34 @@ function setStatus(message, type = '') {
   elStatus.title        = message;   // full text on hover when the bar truncates
   elStatus.className    = `status-bar ${type}`;
 
+  _statusIdle = false;
+
   // Auto-clear 'saved' messages after 3s. 'warning' and 'error' stay put.
   if (type === 'saved') {
-    _statusTimer = setTimeout(() => {
-      elStatus.textContent = hasFileOpen()
-        ? `File: ${getFileName()}`
-        : 'No file open.';
-      elStatus.className = 'status-bar';
-      elStatus.title     = '';
-    }, 3000);
+    _statusTimer = setTimeout(showIdleStatus, 3000);
   }
+}
+
+/**
+ * The resting text of the status bar names the file the current view works
+ * on: review.json in the review view, the .ics everywhere else.
+ */
+function idleStatusText() {
+  if (currentView === 'review') {
+    const name = hasReviewFile()
+      ? getReviewLocation()?.split(/\/|%2F/).pop()
+      : null;
+    return name ? `File: ${name}` : 'No review file open.';
+  }
+  return hasFileOpen() ? `File: ${getFileName()}` : 'No file open.';
+}
+
+function showIdleStatus() {
+  clearTimeout(_statusTimer);
+  elStatus.textContent = idleStatusText();
+  elStatus.className   = 'status-bar';
+  elStatus.title       = '';
+  _statusIdle = true;
 }
 
 /**
