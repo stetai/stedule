@@ -45,24 +45,28 @@ import {
 } from './storage.js';
 
 import {
+  AVERAGE_WINDOW_DAYS,
   AXES,
   SCORE_MAX,
   SCORE_MIN,
-  averageEnergy,
-  averageProductivity,
-  averageSatisfaction,
+  averageScores,
   dateKey,
   deleteReview,
+  displayHex,
   firstReviewDate,
   getReview,
+  getVisibleAxes,
   hasReview,
+  isAxisVisible,
+  isGrayscale,
   isReviewDataLoaded,
   loadReviews,
   reviewColor,
   reviewCount,
-  scoresToHex,
   serializeReviews,
-  setReview
+  setGrayscale,
+  setReview,
+  setVisibleAxes
 } from './review.js';
 
 import {
@@ -454,6 +458,7 @@ async function init() {
     }
   }
 
+  await restoreReviewDisplay();
   await restoreReviewStorage();
   await loadReviewData();
   await maybePromptYesterday();
@@ -1541,32 +1546,169 @@ function paintReviewCell(key, date = null) {
   cell.setAttribute('aria-label', cell.title.replace(/\n/g, ', '));
 }
 
+// Feather-style icons (24×24, stroke 2) to match the existing inline SVGs.
+const SVG_ATTRS = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+const ICON_EYE = `<svg ${SVG_ATTRS}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const ICON_EYE_OFF = `<svg ${SVG_ATTRS}><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+const ICON_GRAYSCALE = `<svg ${SVG_ATTRS}><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg>`;
+
+let _reviewSummaryEl = null;   // currently mounted summary bar, for in-place updates
+
+/**
+ * Footer under the grid: the 14-day average per axis, each with an eye toggle
+ * that hides/shows that axis in the grid, plus a separate greyscale toggle.
+ */
 function buildReviewSummary() {
   const bar = document.createElement('div');
   bar.className = 'review-summary';
 
-  /*const parts  = [
-    `<strong>${reviewCount()}</strong> day${reviewCount() === 1 ? '' : 's'} logged`,
-  ];*/
-  //if (streak > 0) parts.push(`<strong>${streak}</strong>-day streak`);
+  // One pass over the window instead of one per axis.
+  const avg = averageScores(AVERAGE_WINDOW_DAYS, new Date());
 
+  const caption = document.createElement('div');
+  caption.className = 'review-summary-caption';
+  caption.textContent = `${AVERAGE_WINDOW_DAYS}-day average`
+    + (hasReviewFile() ? '' : ' · not saved to a file yet');
+  bar.appendChild(caption);
 
-  const days = 14;
-  const today = new Date();
-  const parts = [`${days}-day average of satisfaction, energy and productivity:`];
+  const row = document.createElement('div');
+  row.className = 'review-avgs';
 
-  // The averages are null when none of the last 14 days has a review
-  // (e.g. a new, empty file); null has no .toFixed().
-  const fmt = v => v === null ? 'N/A' : `<strong>${v.toFixed(2)}</strong>`;
+  for (const axis of AXES) {
+    const item = document.createElement('div');
+    item.className    = 'review-avg';
+    item.dataset.axis = axis.key;
 
-  parts.push(fmt(averageSatisfaction(14, today)));
-  parts.push(fmt(averageEnergy      (14, today)));
-  parts.push(fmt(averageProductivity(14, today)));
+    const label = document.createElement('span');
+    label.className = 'review-avg-label';
+    const dot = document.createElement('span');
+    dot.className = 'review-axis-dot';
+    // Set on the item, not the dot, so the greyscale rule in style.css can
+    // override it on the dot itself (an inline style would always win).
+    item.style.setProperty('--dot', axis.color);
+    label.append(dot, document.createTextNode(axis.label));
 
-  if (!hasReviewFile()) parts.push('not saved to a file yet');
+    const line = document.createElement('span');
+    line.className = 'review-avg-line';
 
-  bar.innerHTML = parts.map(p => `<span>${p}</span>`).join('');
+    // Averages are null when none of the window's days has a review
+    // (e.g. a new, empty file); null has no .toFixed().
+    const value = document.createElement('strong');
+    value.className   = 'review-avg-value';
+    value.textContent = avg[axis.key] === null ? 'N/A' : avg[axis.key].toFixed(2);
+
+    // aria-pressed = "visible in the grid". The label stays constant and the
+    // pressed state carries the toggle, which is how screen readers expect a
+    // toggle button to behave.
+    const eye = document.createElement('button');
+    eye.type      = 'button';
+    eye.className = 'btn btn-icon review-toggle review-eye';
+    eye.dataset.axis = axis.key;
+    eye.setAttribute('aria-label', `Show ${axis.label.toLowerCase()} in the grid`);
+    eye.addEventListener('click', () => toggleAxisVisibility(axis.key));
+
+    line.append(value, eye);
+    item.append(label, line);
+    row.appendChild(item);
+  }
+
+  // Greyscale: visually separated, because it is a mode, not an axis.
+  const mode = document.createElement('div');
+  mode.className = 'review-avg review-avg-mode';
+
+  const modeLabel = document.createElement('span');
+  modeLabel.className   = 'review-avg-label';
+  modeLabel.textContent = 'Grey';
+
+  const grey = document.createElement('button');
+  grey.type      = 'button';
+  grey.className = 'btn btn-icon review-toggle review-gray-toggle';
+  grey.innerHTML = ICON_GRAYSCALE;
+  grey.setAttribute('aria-label', 'Greyscale: lightness shows the sum of the visible scores');
+  grey.title = 'Greyscale — lightness = sum of the visible scores';
+  grey.addEventListener('click', toggleGrayscale);
+
+  mode.append(modeLabel, grey);
+  row.appendChild(mode);
+
+  bar.appendChild(row);
+
+  _reviewSummaryEl = bar;
+  syncReviewToggles();
   return bar;
+}
+
+/** Brings the toggle buttons in the summary bar in line with review.js state. */
+function syncReviewToggles() {
+  const bar = _reviewSummaryEl;
+  if (!bar) return;
+
+  const lastVisible = getVisibleAxes().length === 1;
+
+  for (const eye of bar.querySelectorAll('.review-eye')) {
+    const key     = eye.dataset.axis;
+    const visible = isAxisVisible(key);
+    const locked  = visible && lastVisible;   // can't hide the only visible axis
+
+    eye.innerHTML = visible ? ICON_EYE : ICON_EYE_OFF;
+    eye.setAttribute('aria-pressed', String(visible));
+    eye.setAttribute('aria-disabled', String(locked));
+    eye.title = locked
+      ? 'At least one criterion stays visible'
+      : (visible ? 'Hide in grid' : 'Show in grid');
+
+    eye.closest('.review-avg')?.classList.toggle('is-hidden', !visible);
+  }
+
+  const grey = bar.querySelector('.review-gray-toggle');
+  grey?.setAttribute('aria-pressed', String(isGrayscale()));
+  bar.classList.toggle('is-grayscale', isGrayscale());
+}
+
+async function toggleAxisVisibility(key) {
+  const visible = getVisibleAxes();
+  const next = visible.includes(key)
+    ? visible.filter(k => k !== key)
+    : [...visible, key];
+
+  if (!next.length) {
+    setStatus('At least one criterion has to stay visible.');
+    return;
+  }
+
+  setVisibleAxes(next);
+  applyReviewDisplayChange();
+  await saveLocalSetting('reviewVisibleAxes', getVisibleAxes());
+}
+
+async function toggleGrayscale() {
+  setGrayscale(!isGrayscale());
+  applyReviewDisplayChange();
+  await saveLocalSetting('reviewGrayscale', isGrayscale());
+}
+
+/**
+ * Repaints in place after a display-filter change: no re-render, so the
+ * scroll position and keyboard focus on the toggle survive.
+ */
+function applyReviewDisplayChange() {
+  for (const key of _reviewCells.keys()) paintReviewCell(key);
+  syncReviewToggles();
+  if (elReviewOverlay.classList.contains('open')) updateReviewPreview();
+}
+
+/**
+ * Display filters are a per-device view preference, so they live in the
+ * local store (survives force-restart) rather than in the synced settings.
+ */
+async function restoreReviewDisplay() {
+  try {
+    const axes = await getLocalSetting('reviewVisibleAxes');
+    if (Array.isArray(axes)) setVisibleAxes(axes);
+  } catch {
+    // Empty or unknown keys: setVisibleAxes threw, keep all axes visible.
+  }
+  setGrayscale((await getLocalSetting('reviewGrayscale')) === true);
 }
 
 function scrollReviewToBottom() {
@@ -1632,8 +1774,9 @@ function readReviewSliders() {
 }
 
 function updateReviewPreview() {
-  const s   = readReviewSliders();
-  const hex = scoresToHex(s.satisfaction, s.energy, s.productivity);
+  // Same transform as the grid (hidden axes, greyscale), so the swatch shows
+  // exactly what the cell will look like after saving.
+  const hex = displayHex(readReviewSliders());
   elReviewSwatch.style.background = hex;
   elReviewHint.textContent = hex.toUpperCase();
 }

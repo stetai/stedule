@@ -1431,16 +1431,125 @@ select:focus {
 .review-summary {
   flex-shrink: 0;
   display: flex;
-  gap: var(--space-md);
+  flex-direction: column;
+  gap: var(--space-xs);
   padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border);
+  /* same width as the grid above it, so the columns line up visually */
+  width: calc(var(--review-gutter) + 7 * var(--review-cell-max) + 8 * var(--review-gap));
+  max-width: 100%;
   font-size: 0.72rem;
   color: var(--color-text-muted);
 }
 
-.review-summary strong {
+.review-summary-caption {
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+}
+
+/* three axis columns + one narrow mode column */
+.review-avgs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: var(--space-sm);
+  align-items: end;
+}
+
+.review-avg {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.review-avg-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.66rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity 0.15s;
+}
+
+.review-avg-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.review-avg-value {
   color: var(--color-text);
   font-family: var(--font-numeric);
+  font-size: 0.85rem;
   font-weight: 500;
+  transition: opacity 0.15s;
+}
+
+/* The axis dot in the summary reads its colour from --dot so the hidden
+   state can turn it into a hollow ring of the same colour. */
+.review-avg .review-axis-dot {
+  background: var(--dot);
+  box-shadow: inset 0 0 0 1.5px var(--dot);
+  transition: background 0.15s;
+}
+
+.review-avg.is-hidden .review-axis-dot { background: transparent; }
+.review-avg.is-hidden .review-avg-value,
+.review-avg.is-hidden .review-avg-label { opacity: 0.45; }
+
+/* In greyscale the axis colours are not on screen, so the dots go neutral
+   rather than suggest a hue the grid isn't showing. */
+.review-summary.is-grayscale .review-avg .review-axis-dot {
+  --dot: var(--color-text-muted);
+}
+
+/* -- toggle buttons --------------------------------------------------- */
+
+.review-toggle {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  justify-content: center;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.review-toggle svg {
+  width: 15px;
+  height: 15px;
+}
+
+.review-toggle[aria-pressed="true"] {
+  color: var(--color-text);
+}
+
+.review-toggle[aria-disabled="true"] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.review-toggle:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Greyscale is a mode, not an axis: hairline separator, and the "on" state
+   uses the same accent treatment as the active view button. */
+.review-avg-mode {
+  align-items: center;
+  padding-left: var(--space-sm);
+  border-left: 1px solid var(--color-border);
+}
+
+.review-gray-toggle[aria-pressed="true"] {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
 }
 
 .review-empty {

@@ -331,10 +331,105 @@ export function axisColors(mode) {
   return Object.fromEntries(AXIS_KEYS.map(k => [k, axisColor(k, mode)]));
 }
 
-/** Convenience: colour for a stored entry, or null for an unreviewed day. */
+// ------------------------------------------------------------
+// Display filters
+// ------------------------------------------------------------
+//
+// Two view-only settings that sit on top of the colour mode. They never touch
+// stored data; they only change how a day is painted.
+//
+//   visible axes — hidden axes are treated as 0 before the colour mode runs,
+//                  i.e. that light is switched off. With only one axis
+//                  visible the grid becomes a single-hue heat map.
+//   greyscale    — ignores the colour mode entirely and paints a grey whose
+//                  lightness encodes the sum of the visible scores.
+
+let _visibleAxes = new Set(AXIS_KEYS);
+let _grayscale   = false;
+
+/** Visible axis keys, always in AXES order. */
+export function getVisibleAxes() { return AXIS_KEYS.filter(k => _visibleAxes.has(k)); }
+
+export function isAxisVisible(key) { return _visibleAxes.has(key); }
+
+/**
+ * @param {string[]} keys — unknown keys are ignored
+ * @throws {RangeError} if no valid key remains: an all-hidden grid would show
+ *         every reviewed day as the same colour, which carries no information.
+ */
+export function setVisibleAxes(keys) {
+  const valid = AXIS_KEYS.filter(k => keys.includes(k));
+  if (!valid.length) throw new RangeError('At least one axis must stay visible.');
+  _visibleAxes = new Set(valid);
+}
+
+export function isGrayscale() { return _grayscale; }
+export function setGrayscale(on) { _grayscale = !!on; }
+
+/** CIE 1976 constant κ = 24389/27 for the linear segment of L* (CIE 15:2004). */
+const CIE_KAPPA = 24389 / 27;
+
+/**
+ * CIE L* (0..100) of a neutral grey -> its sRGB channel value (0..1).
+ *
+ *   L* -> relative luminance Y   inverse of the CIELAB lightness function
+ *   Y  -> sRGB                   IEC 61966-2-1 transfer function
+ *
+ * L* is the CIE's perceptual lightness scale (the Munsell "value" scale is
+ * closely related to it), so equal steps in the input look like equal steps
+ * of lightness.
+ */
+function lightnessToSrgb(L) {
+  const Y = L > 8 ? ((L + 16) / 116) ** 3 : L / CIE_KAPPA;
+  return Y <= 0.0031308 ? 12.92 * Y : 1.055 * Y ** (1 / 2.4) - 0.055;
+}
+
+/**
+ * Grey whose lightness is proportional to the sum of the given axes.
+ *
+ * Computed from the scores, NOT from the luminance of the combined colour:
+ * the primaries differ hugely in luminance (Rec. 709 weights: R 0.21,
+ * G 0.72, B 0.07), so a colour's lightness says more about *which* axis is
+ * high than about *how much* in total. Here every axis point counts equally.
+ *
+ *   sum of visible scores / (SCORE_MAX × number of visible axes)  ->  L* 0..100
+ *
+ * The divisor only rescales, so the grey is a strictly increasing function of
+ * the sum: two days with the same total always get the same grey.
+ */
+export function grayscaleHex(scores, keys = getVisibleAxes()) {
+  if (!keys.length) throw new RangeError('grayscaleHex needs at least one axis.');
+  let sum = 0;
+  for (const k of keys) sum += clampScore(scores?.[k]);
+  const t = clamp01(sum / (SCORE_MAX * keys.length));
+  const c = Math.round(clamp01(lightnessToSrgb(100 * t)) * 255).toString(16).padStart(2, '0');
+  return `#${c}${c}${c}`;
+}
+
+/**
+ * The colour a day is actually painted with: colour mode + display filters.
+ * Use this (or reviewColor) for anything that should match the grid.
+ * scoresToHex() stays the raw, unfiltered mapping.
+ *
+ * @param {{satisfaction:number, energy:number, productivity:number}} scores
+ */
+export function displayHex(scores, {
+  visible   = getVisibleAxes(),
+  grayscale = _grayscale,
+  mode      = _colorMode,
+} = {}) {
+  if (grayscale) return grayscaleHex(scores, visible);
+  const masked = AXIS_KEYS.map(k => visible.includes(k) ? clampScore(scores?.[k]) : 0);
+  return scoresToHex(...masked, mode);
+}
+
+/**
+ * Convenience: display colour for a stored entry, or null for an unreviewed
+ * day. Applies the display filters, so the grid only ever calls this.
+ */
 export function reviewColor(entry) {
   if (!entry) return null;
-  return scoresToHex(entry.satisfaction, entry.energy, entry.productivity);
+  return displayHex(entry);
 }
 
 /** 0..10 mean of the three axes — used for tooltips and summaries. */
