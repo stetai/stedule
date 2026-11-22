@@ -1703,24 +1703,38 @@ function applyReviewDisplayChange(originEl = null) {
   if (elReviewOverlay.classList.contains('open')) updateReviewPreview();
 }
 
-// Must match the background-color duration on .review-cell in style.css.
-const REVIEW_RIPPLE_MS = 220;
-let _reviewRippleTimer = null;
+let _reviewRippleFrame = null;   // rAF id of the running colour wave, if any
+
+const REVIEW_RIPPLE_SPEED = DIM_SPEED_PX_PER_MS * 3;   // px per ms
 
 /**
  * Repaints every review cell, each one delayed by its distance from the
- * centre of `originEl`. Same wave as the chip dimming in the week view:
- * same speed constant, same delay formula (rippleDelayAt), so the two feel
- * like one animation. The colour change itself is a CSS transition on
- * background-color; this only staggers its start via --ripple-delay.
+ * centre of `originEl`. Same wave as the chip dimming in the week view
+ * (same delay formula, rippleDelayAt), but faster.
  *
- * Cells scrolled out of view switch at once. Their distance would give them
+ * The stagger is driven from JS, one requestAnimationFrame loop that paints
+ * each cell when the wave front reaches it. Each cell then fades with a
+ * plain, *undelayed* CSS transition. An earlier version put the stagger in
+ * CSS (a per-cell transition-delay via --ripple-delay) and removed it with a
+ * timer afterwards. Where Chromium runs background-color transitions on the
+ * compositor, that removal re-sent the just-finished animations and the
+ * cells showed their old colour for one frame.
+ *
+ * Cells scrolled out of view switch at once: their distance would give them
  * delays of several seconds, and scrolling up mid-wave would show old colours.
+ *
+ * A new toggle mid-wave cancels the old loop. Cells the old wave had not yet
+ * reached are simply painted by the new one; paintReviewCell() always uses
+ * the current filters, so nothing is painted twice in a stale colour.
  */
 function rippleRepaintReview(originEl) {
-  const o = originEl?.getBoundingClientRect();
+  cancelAnimationFrame(_reviewRippleFrame);
+  _reviewRippleFrame = null;
 
-  if (!o || !_reviewScrollEl) {
+  const o = originEl?.getBoundingClientRect();
+  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+  if (!o || !_reviewScrollEl || reduceMotion) {
     for (const key of _reviewCells.keys()) paintReviewCell(key);
     return;
   }
@@ -1731,27 +1745,32 @@ function rippleRepaintReview(originEl) {
 
   // Read all geometry first, then write: interleaving getBoundingClientRect()
   // with style writes would force a style recalculation per cell.
-  const plan = [];
-  let maxDelay = 0;
+  const wave = [];
+  const now  = [];
   for (const [key, cell] of _reviewCells) {
     const r = cell.getBoundingClientRect();
-    const onScreen = r.bottom > view.top && r.top < view.bottom;
-    const delay = onScreen ? rippleDelayAt(r, ox, oy) : 0;
-    maxDelay = Math.max(maxDelay, delay);
-    plan.push([key, cell, delay]);
+    if (r.bottom > view.top && r.top < view.bottom) {
+      wave.push({ key, delay: rippleDelayAt(r, ox, oy, REVIEW_RIPPLE_SPEED) });
+    } else {
+      now.push(key);
+    }
   }
 
-  for (const [key, cell, delay] of plan) {
-    cell.style.setProperty('--ripple-delay', `${Math.round(delay)}ms`);
-    paintReviewCell(key);
-  }
+  for (const key of now) paintReviewCell(key);
 
-  // Drop the delays once the wave is done, so a later single-cell repaint
-  // (e.g. after saving a review) fades in immediately.
-  clearTimeout(_reviewRippleTimer);
-  _reviewRippleTimer = setTimeout(() => {
-    for (const cell of _reviewCells.values()) cell.style.removeProperty('--ripple-delay');
-  }, maxDelay + REVIEW_RIPPLE_MS);
+  wave.sort((a, b) => a.delay - b.delay);
+  let next = 0;
+  let t0   = null;
+
+  const step = (time) => {
+    if (t0 === null) t0 = time;
+    const elapsed = time - t0;
+    while (next < wave.length && wave[next].delay <= elapsed) {
+      paintReviewCell(wave[next++].key);
+    }
+    _reviewRippleFrame = next < wave.length ? requestAnimationFrame(step) : null;
+  };
+  _reviewRippleFrame = requestAnimationFrame(step);
 }
 
 /**
@@ -2670,7 +2689,7 @@ function rippleDim(originX, originY, dimming, exceptChip = null) {
   let maxDelay = 0;
 
   for (const chip of chips) {
-    const delay = rippleDelayAt(chip.getBoundingClientRect(), originX, originY);
+    const delay = rippleDelayAt(chip.getBoundingClientRect(), originX, originY, DIM_SPEED_PX_PER_MS);
     maxDelay = Math.max(maxDelay, delay);
 
     chip.classList.add('dim-transition');
@@ -2691,10 +2710,10 @@ function rippleDim(originX, originY, dimming, exceptChip = null) {
  * (originX, originY) to the rect's centre, divided by the wave speed.
  * Shared by the chip dimming above and the review grid's colour ripple.
  */
-function rippleDelayAt(r, originX, originY) {
+function rippleDelayAt(r, originX, originY, speed) {
   const dx = (r.left + r.width  / 2) - originX;
   const dy = (r.top  + r.height / 2) - originY;
-  return Math.hypot(dx, dy) / DIM_SPEED_PX_PER_MS;
+  return Math.hypot(dx, dy) / speed;
 }
 
 function cleanupDimClasses() {
