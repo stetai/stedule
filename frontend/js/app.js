@@ -1612,7 +1612,7 @@ function buildReviewSummary() {
     eye.className = 'btn btn-icon review-toggle review-eye';
     eye.dataset.axis = axis.key;
     eye.setAttribute('aria-label', `Show ${axis.label.toLowerCase()} in the grid`);
-    eye.addEventListener('click', () => toggleAxisVisibility(axis.key));
+    eye.addEventListener('click', () => toggleAxisVisibility(axis.key, eye));
 
     line.append(value, eye);
     item.append(label, line);
@@ -1632,8 +1632,8 @@ function buildReviewSummary() {
   grey.className = 'btn btn-icon review-toggle review-gray-toggle';
   grey.innerHTML = ICON_GRAYSCALE;
   grey.setAttribute('aria-label', 'Greyscale: lightness shows the sum of the visible scores');
-  grey.title = 'Greyscale — lightness = sum of the visible scores';
-  grey.addEventListener('click', toggleGrayscale);
+  grey.title = 'Greyscale';
+  grey.addEventListener('click', () => toggleGrayscale(grey));
 
   mode.append(modeLabel, grey);
   row.appendChild(mode);
@@ -1672,7 +1672,8 @@ function syncReviewToggles() {
   bar.classList.toggle('is-grayscale', isGrayscale());
 }
 
-async function toggleAxisVisibility(key) {
+/** @param {HTMLElement} [originEl] — the pressed button; the ripple starts there */
+async function toggleAxisVisibility(key, originEl = null) {
   const visible = getVisibleAxes();
   const next = visible.includes(key)
     ? visible.filter(k => k !== key)
@@ -1681,24 +1682,76 @@ async function toggleAxisVisibility(key) {
   if (!next.length) return;   // last visible axis: the button is shown as locked
 
   setVisibleAxes(next);
-  applyReviewDisplayChange();
+  applyReviewDisplayChange(originEl);
   await saveLocalSetting('reviewVisibleAxes', getVisibleAxes());
 }
 
-async function toggleGrayscale() {
+async function toggleGrayscale(originEl = null) {
   setGrayscale(!isGrayscale());
-  applyReviewDisplayChange();
+  applyReviewDisplayChange(originEl);
   await saveLocalSetting('reviewGrayscale', isGrayscale());
 }
 
 /**
  * Repaints in place after a display-filter change: no re-render, so the
- * scroll position and keyboard focus on the toggle survive.
+ * scroll position and keyboard focus on the toggle survive. With an origin
+ * element the new colours spread out from it as a ripple.
  */
-function applyReviewDisplayChange() {
-  for (const key of _reviewCells.keys()) paintReviewCell(key);
+function applyReviewDisplayChange(originEl = null) {
+  rippleRepaintReview(originEl);
   syncReviewToggles();
   if (elReviewOverlay.classList.contains('open')) updateReviewPreview();
+}
+
+// Must match the background-color duration on .review-cell in style.css.
+const REVIEW_RIPPLE_MS = 220;
+let _reviewRippleTimer = null;
+
+/**
+ * Repaints every review cell, each one delayed by its distance from the
+ * centre of `originEl`. Same wave as the chip dimming in the week view:
+ * same speed constant, same delay formula (rippleDelayAt), so the two feel
+ * like one animation. The colour change itself is a CSS transition on
+ * background-color; this only staggers its start via --ripple-delay.
+ *
+ * Cells scrolled out of view switch at once. Their distance would give them
+ * delays of several seconds, and scrolling up mid-wave would show old colours.
+ */
+function rippleRepaintReview(originEl) {
+  const o = originEl?.getBoundingClientRect();
+
+  if (!o || !_reviewScrollEl) {
+    for (const key of _reviewCells.keys()) paintReviewCell(key);
+    return;
+  }
+
+  const ox   = o.left + o.width / 2;
+  const oy   = o.top  + o.height / 2;
+  const view = _reviewScrollEl.getBoundingClientRect();
+
+  // Read all geometry first, then write: interleaving getBoundingClientRect()
+  // with style writes would force a style recalculation per cell.
+  const plan = [];
+  let maxDelay = 0;
+  for (const [key, cell] of _reviewCells) {
+    const r = cell.getBoundingClientRect();
+    const onScreen = r.bottom > view.top && r.top < view.bottom;
+    const delay = onScreen ? rippleDelayAt(r, ox, oy) : 0;
+    maxDelay = Math.max(maxDelay, delay);
+    plan.push([key, cell, delay]);
+  }
+
+  for (const [key, cell, delay] of plan) {
+    cell.style.setProperty('--ripple-delay', `${Math.round(delay)}ms`);
+    paintReviewCell(key);
+  }
+
+  // Drop the delays once the wave is done, so a later single-cell repaint
+  // (e.g. after saving a review) fades in immediately.
+  clearTimeout(_reviewRippleTimer);
+  _reviewRippleTimer = setTimeout(() => {
+    for (const cell of _reviewCells.values()) cell.style.removeProperty('--ripple-delay');
+  }, maxDelay + REVIEW_RIPPLE_MS);
 }
 
 /**
@@ -2617,10 +2670,7 @@ function rippleDim(originX, originY, dimming, exceptChip = null) {
   let maxDelay = 0;
 
   for (const chip of chips) {
-    const r = chip.getBoundingClientRect();
-    const dx = (r.left + r.width / 2) - originX;
-    const dy = (r.top  + r.height / 2) - originY;
-    const delay = Math.hypot(dx, dy) / DIM_SPEED_PX_PER_MS;
+    const delay = rippleDelayAt(chip.getBoundingClientRect(), originX, originY);
     maxDelay = Math.max(maxDelay, delay);
 
     chip.classList.add('dim-transition');
@@ -2634,6 +2684,17 @@ function rippleDim(originX, originY, dimming, exceptChip = null) {
   });
 
   return maxDelay + DIM_TRANSITION_MS;
+}
+
+/**
+ * Ripple delay in ms for an element whose bounding rect is `r`: distance from
+ * (originX, originY) to the rect's centre, divided by the wave speed.
+ * Shared by the chip dimming above and the review grid's colour ripple.
+ */
+function rippleDelayAt(r, originX, originY) {
+  const dx = (r.left + r.width  / 2) - originX;
+  const dy = (r.top  + r.height / 2) - originY;
+  return Math.hypot(dx, dy) / DIM_SPEED_PX_PER_MS;
 }
 
 function cleanupDimClasses() {

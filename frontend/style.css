@@ -1400,7 +1400,13 @@ select:focus {
   background: transparent;
   box-shadow: inset 0 0 0 1px var(--color-border);
   cursor: pointer;
-  transition: transform 0.12s, box-shadow 0.12s;
+  /* background-color is staggered by --ripple-delay, which
+     rippleRepaintReview() sets per cell (220ms = REVIEW_RIPPLE_MS in app.js).
+     The hover properties keep their own, undelayed timing. */
+  transition:
+    transform 0.12s,
+    box-shadow 0.12s,
+    background-color 220ms ease var(--ripple-delay, 0ms);
 }
 
 .review-cell.filled {
@@ -1427,6 +1433,13 @@ select:focus {
 .review-cell:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .review-cell {
+    transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
+  }
 }
 
 /* -- footer summary --------------------------------------------------- */
@@ -1528,6 +1541,13 @@ select:focus {
 }
 
 .review-toggle[aria-pressed="true"] {
+  color: var(--color-text);
+}
+
+/* The eye keeps full contrast whether its criterion is shown or hidden: only
+   the icon (eye / eye-off) changes, so it always reads as a live button while
+   the label and value next to it fade. */
+.review-eye {
   color: var(--color-text);
 }
 
