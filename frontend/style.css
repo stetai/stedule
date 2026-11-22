@@ -1702,3 +1702,119 @@ input[type="range"].review-range:focus-visible::-webkit-slider-thumb {
   line-height: 1.35;
   color: var(--color-text-muted);
 }
+/* ####################################################################
+   REVIEW VIEW — wide screens
+   Browser windows (roughly square or landscape). The phone layout above
+   is the base; this only scales it up and spreads the footer out, so both
+   share one structure and one set of rules.
+   Trigger: wider than 3:4 *and* at least 600px, so a phone in portrait
+   never matches but a tablet or a desktop window does.
+#################################################################### */
+
+@media (min-aspect-ratio: 3/4) and (min-width: 600px) {
+
+  :root {
+    /* Cells grow with the smaller viewport side, so a square window fills
+       nicely and a very wide one doesn't produce giant tiles. */
+    --review-cell-max: clamp(44px, 6.2vmin, 68px);
+    --review-gap:      6px;
+    --review-gutter:   76px;   /* room for "Nov 47" on month-start rows */
+  }
+
+  .review-pane {
+    padding-top: var(--space-sm);
+  }
+
+  /* The week-number gutter sits on the left only, which pushed the seven day
+     columns off-centre relative to the footer. Mirror it as right padding so
+     the *days* are centred on the page. */
+  .review-head,
+  .review-grid {
+    width: calc(2 * var(--review-gutter) + 7 * var(--review-cell-max) + 8 * var(--review-gap));
+    padding-right: var(--review-gutter);
+  }
+
+  .review-head {
+    padding-bottom: var(--space-sm);
+  }
+
+  .review-head-label {
+    font-size: 0.72rem;
+  }
+
+  .review-week-label {
+    gap: 6px;
+    padding-right: var(--space-xs);
+    font-size: 0.72rem;
+  }
+
+  /* Month name in front of the week number, only where there is room for it.
+     data-month is set by renderReviewView() on month-start rows. */
+  .review-week-label.month-start::before {
+    content: attr(data-month);
+    font-family: var(--font-ui);
+    font-size: 0.66rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  /* -- footer: centred rule at 70% of the width ------------------------- */
+
+  .review-summary {
+    width: 70%;
+    max-width: none;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-top: var(--space-sm);
+    padding-top: var(--space-md);
+    font-size: 0.78rem;
+  }
+
+  .review-summary-caption {
+    font-size: 0.7rem;
+  }
+
+  /* The rule spans 70 %, the figures stay under the grid. Spread over the
+     full 70 % they drifted far apart on wide windows and stopped reading as
+     a caption to the grid. */
+  .review-avgs {
+    width: min(100%, calc(2 * var(--review-gutter) + 7 * var(--review-cell-max) + 8 * var(--review-gap)));
+    gap: var(--space-lg);
+    justify-items: center;
+  }
+
+  .review-avg {
+    align-items: center;
+    gap: var(--space-xs);
+  }
+
+  .review-avg-label {
+    font-size: 0.72rem;
+    letter-spacing: 0.02em;
+  }
+
+  .review-avg-value {
+    font-size: 1.1rem;
+  }
+
+  .review-avg-line {
+    gap: var(--space-sm);
+  }
+
+  .review-toggle {
+    width: 30px;
+    height: 30px;
+  }
+
+  .review-toggle svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .review-avg-mode {
+    align-self: stretch;
+    justify-content: flex-end;
+    padding-left: var(--space-lg);
+  }
+}
