@@ -1,6 +1,6 @@
 [package]
 name = "Stedule"
-version = "0.8.3-alpha.1"
+version = "0.8.4-alpha.1"
 description = "A calendar application that saves its data in a local .ics file."
 authors = ["Steven Taing"]
 edition = "2021" # Rust language edition
